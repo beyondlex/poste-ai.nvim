@@ -79,6 +79,12 @@ local function set_win_opts(win, kind)
     pcall(vim.api.nvim_set_option_value, "conceallevel", 2, { win = win })
     pcall(vim.api.nvim_set_option_value, "cursorline", true, { win = win })
     pcall(vim.api.nvim_set_option_value, "cursorlineopt", "line", { win = win })
+    -- statusline: current block title + right-aligned gray block counter.
+    -- `%{}` results are literal, so the %-items live in this option string.
+    pcall(vim.api.nvim_set_option_value, "statusline",
+      "%#PosteAiTimestamp#Q%* %{v:lua.require('poste-ai.chat.conversation').statusline_title()}"
+      .. "%=%#PosteAiTimestampBg# %{v:lua.require('poste-ai.chat.conversation').statusline_counter()} %*",
+      { win = win })
   elseif kind == "input" then
     -- colored left gutter so the input pane is visually distinct
     pcall(vim.api.nvim_set_option_value, "signcolumn", "yes", { win = win })

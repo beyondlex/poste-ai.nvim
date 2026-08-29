@@ -24,6 +24,7 @@ local LINKS = {
   PosteAiWinbar = "Comment",
   PosteAiSpinner = "Special",
   PosteAiTimestamp = "Comment",
+  PosteAiTimestampBg = "Folded",
 }
 
 function M.setup()

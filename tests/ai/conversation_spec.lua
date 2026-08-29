@@ -1,5 +1,6 @@
 describe("poste-ai.chat.conversation", function()
   local conversation = require("poste-ai.chat.conversation")
+  local window = require("poste-ai.chat.window")
 
   local buf
 
@@ -168,5 +169,86 @@ describe("poste-ai.chat.conversation", function()
     -- timestamp ends one column before the window edge (60 - 1 margin)
     assert.are.equal(59, vim.fn.strdisplaywidth("❯ You") + pad + vim.fn.strdisplaywidth(ts))
     pcall(vim.api.nvim_win_close, win, true)
+  end)
+
+  describe("block title / statusline", function()
+    it("resolves the block title under a buffer row", function()
+      conversation.append_user("first question")
+      conversation.append({ role = "assistant", text = "a1", model = "m" })
+      conversation.append_user("second question")
+      conversation.append({ role = "assistant", text = "a2", model = "m" })
+      -- rows: 0 label, 1 q1, 2 blank, 3 label, 4 a1, 5 blank, 6 label, 7 q2, ...
+      assert.are.equal("first question", conversation.block_title_at(0))
+      assert.are.equal("first question", conversation.block_title_at(4))   -- inside first answer
+      assert.are.equal("second question", conversation.block_title_at(6))
+      assert.are.equal("second question", conversation.block_title_at(10)) -- inside second answer
+    end)
+
+    it("returns nil above the first question block", function()
+      conversation.append_note("ready")
+      conversation.append_user("q")
+      assert.is_nil(conversation.block_title_at(0))
+    end)
+
+    it("statusline truncates the title to the window width", function()
+      conversation.append_user("统计每个author发了几条消息统计每个统计每个")
+      -- no window shows the buffer here → empty
+      assert.are.equal("", conversation.statusline_title())
+      local win = vim.api.nvim_open_win(buf, false, {
+        relative = "editor", row = 0, col = 0, width = 40, height = 5,
+      })
+      conversation.append({ role = "assistant", text = "a", model = "m" })
+      vim.api.nvim_win_set_cursor(win, { 2, 0 })  -- first answer line
+      local s = conversation.statusline_title()
+      assert.is_not_equal("", s)
+      -- the title is plain text (no % markup leaks through)
+      assert.falsy(s:find("%%", 1, true))
+      assert.is_true(vim.fn.strdisplaywidth(s) <= 40)
+      pcall(vim.api.nvim_win_close, win, true)
+    end)
+
+    it("reports the block index and total under a row", function()
+      conversation.append_user("q1")
+      conversation.append({ role = "assistant", text = "a1", model = "m" })
+      conversation.append_user("q2")
+      conversation.append({ role = "assistant", text = "a2", model = "m" })
+      conversation.append_user("q3")
+      local idx, total = conversation.block_index_at(0)   -- q1 label
+      assert.are.equal(1, idx)
+      assert.are.equal(3, total)
+      idx = conversation.block_index_at(4)                -- inside q1's answer
+      assert.are.equal(1, idx)
+      idx = conversation.block_index_at(6)                -- q2 label
+      assert.are.equal(2, idx)
+      idx = conversation.block_index_at(10)               -- q2's answer
+      assert.are.equal(2, idx)
+      -- above the first block (note row)
+      conversation.set_messages({})
+      conversation.append_note("ready")
+      conversation.append_user("q")
+      idx, total = conversation.block_index_at(0)
+      assert.is_nil(idx)
+      assert.are.equal(1, total)
+    end)
+
+    it("statusline counter reports the block position, markup stays in the option", function()
+      window.open()
+      local conv_win = window.conversation_win()
+      conversation.set_messages({})
+      conversation.append_user("q1")
+      conversation.append({ role = "assistant", text = "a1", model = "m" })
+      conversation.append_user("q2")
+      conversation.append({ role = "assistant", text = "a2", model = "m" })
+      -- rows: 0 label, 1 q1, 2 blank, 3 label, 4 a1, 5 blank, 6 label, 7 q2, ...
+      vim.api.nvim_win_set_cursor(conv_win, { 5, 0 })  -- a1 content → 1/2
+      assert.are.equal("1/2", conversation.statusline_counter())
+      -- title is plain text with no % markup leaking through
+      assert.truthy(conversation.statusline_title():find("q1", 1, true))
+      assert.falsy(conversation.statusline_title():find("%%", 1, true))
+      -- the chat window option carries the literal right-align + gray chip markup
+      local opt = vim.api.nvim_get_option_value("statusline", { win = conv_win })
+      assert.truthy(opt:find("%=", 1, true))                -- right-align separator
+      assert.truthy(opt:find("PosteAiTimestampBg", 1, true)) -- gray chip group
+    end)
   end)
 end)

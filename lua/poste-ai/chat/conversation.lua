@@ -311,6 +311,99 @@ function M.outline_entries()
   return out
 end
 
+--- Truncate a string to fit `limit` display columns, appending "...".
+--- @param text string
+--- @param limit number
+--- @return string
+local function truncate(text, limit)
+  if limit <= 3 then return vim.fn.strcharpart(text, 0, math.max(0, limit - 3)) .. "..." end
+  local n = vim.fn.strchars(text)
+  for i = 0, n do
+    if vim.fn.strdisplaywidth(vim.fn.strcharpart(text, 0, i)) > limit - 3 then
+      return vim.fn.strcharpart(text, 0, math.max(0, i - 1)) .. "..."
+    end
+  end
+  return text
+end
+
+--- Title of the chat block under a buffer row — the user question of the turn
+--- whose block starts at or before `row` (an assistant answer belongs to the
+--- preceding question). Returns nil above the first block.
+--- @param row number 0-based buffer row
+--- @return string|nil
+function M.block_title_at(row)
+  local title = nil
+  for i, msg in ipairs(st.messages) do
+    if msg.role == "user" and msg.text and msg.text ~= "" then
+      local start_row = st.rows[i].label_row or st.rows[i].content_start
+      if start_row > row then break end
+      title = msg.text
+    end
+  end
+  return title
+end
+
+--- Index (1-based) of the chat block under a buffer row plus the total number
+--- of blocks. Blocks are user questions; an answer belongs to the preceding
+--- one. Index is nil above the first block.
+--- @param row number 0-based buffer row
+--- @return number|nil index
+--- @return number total
+function M.block_index_at(row)
+  local total = 0
+  for i, msg in ipairs(st.messages) do
+    if msg.role == "user" and msg.text and msg.text ~= "" then total = total + 1 end
+  end
+  if total == 0 then return nil, 0 end
+  local index = nil
+  for i, msg in ipairs(st.messages) do
+    if msg.role == "user" and msg.text and msg.text ~= "" then
+      local start_row = st.rows[i].label_row or st.rows[i].content_start
+      if start_row > row then break end
+      index = (index or 0) + 1
+    end
+  end
+  return index, total
+end
+
+--- Plain title for the statusline: the current chat block's user question,
+--- truncated to fit the window width alongside the right-aligned block
+--- counter. Returns "" when no block is under the cursor. No `%` markup —
+--- statusline items in a `%{}` result are shown literally.
+--- @return string
+function M.statusline_title()
+  if not buf_ready() then return "" end
+  for _, w in ipairs(vim.fn.win_findbuf(st.buf)) do
+    if vim.api.nvim_win_is_valid(w) then
+      local row = vim.api.nvim_win_get_cursor(w)[1] - 1
+      local width = vim.api.nvim_win_get_width(w)
+      local title = M.block_title_at(row)
+      if not title then return "" end
+      local _, total = M.block_index_at(row)
+      local counter_w = (total and total > 0) and vim.fn.strdisplaywidth(total .. "/" .. total) or 0
+      title = (title:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", ""))
+      return truncate(title, math.max(4, width - counter_w - 6))
+    end
+  end
+  return ""
+end
+
+--- Plain `index/total` counter of the block under the cursor, or "" when no
+--- block. The gray chip around it lives in the statusline option string.
+--- @return string
+function M.statusline_counter()
+  if not buf_ready() then return "" end
+  for _, w in ipairs(vim.fn.win_findbuf(st.buf)) do
+    if vim.api.nvim_win_is_valid(w) then
+      local row = vim.api.nvim_win_get_cursor(w)[1] - 1
+      local index, total = M.block_index_at(row)
+      if not index or not total or total == 0 then return "" end
+      return index .. "/" .. total
+    end
+  end
+  return ""
+end
+
 --- Raw text of the last non-empty assistant message (for yank-last).
 --- @return string|nil
 function M.last_assistant_text()
