@@ -34,7 +34,8 @@ domain **contexts**. Think a much smaller avante.nvim.
 | `chat/window.lua` | two-pane sidebar: `poste://chat` + `poste://chat_input`, all keymaps; winbar scope display + input context line |
 | `chat/slash.lua` | slash command framework: built-ins (`/new` `/session` `/models`) + context `commands`; intercepts input submission |
 | `chat/popup.lua` | generic list palette floating above the input window (Up/Down/Enter/Esc via temporary insert-mode keymaps) |
-| `chat/scope.lua` | ordered key/value chat scope (connection, database …): snapshot, display ("-", "conn", "conn/db"), session stamping |
+| `chat/scope.lua` | ordered key/value chat scope (connection, database …): snapshot, `display` ("-", "conn", "conn/db"), `render` (per-binding icon + value for the input context line), session stamping |
+| `chat/history.lua` | input history: Up/Down walks back through sent questions (draft preserved, cursor-aware on multi-line) |
 | `chat/conversation.lua` | conversation buffer composition + render extmarks; owns message list and code-block lookup |
 | `chat/render.lua` | pure markdown → extmark specs (fences/headings/lists/quotes/inline code) |
 | `chat/stream.lua` | send pipeline: mentions → context blocks → provider stream → throttled flush; busy/cancel/follow |

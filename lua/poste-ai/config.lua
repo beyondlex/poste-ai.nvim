@@ -59,6 +59,8 @@ M.defaults = {
       cancel = "<C-c>",
       focus_chat = "<Esc>",
       new_session = "<C-n>",
+      history_up = "<Up>",      -- previous question; inside a multi-line draft the
+      history_down = "<Down>",  -- arrows move the cursor instead (first/last line wraps)
     },
   },
 }
@@ -71,6 +73,8 @@ local KEY_DISPLAY_NAMES = {
   ["<S-Tab>"] = "S-Tab",
   ["<CR>"] = "Enter",
   ["<M-Cr>"] = "Alt+Enter",
+  ["<Up>"] = "Up",
+  ["<Down>"] = "Down",
   ["<Esc>"] = "Esc",
   ["<Space>"] = "<Space>",
   ["<C-c>"] = "C-c",

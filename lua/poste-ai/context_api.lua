@@ -26,8 +26,8 @@
 ---                                      of calling cb
 ---       run(item, api)                  execute; item is the chosen candidate
 ---                                      or nil; api exposes set_scope(key,
----                                      value), scope(), clear_scope() to
----                                      bind the chat scope (displayed above
+---                                      value, icon?), scope(), clear_scope()
+---                                      to bind the chat scope (displayed above
 ---                                      the input and persisted per message)
 ---     }
 ---   }

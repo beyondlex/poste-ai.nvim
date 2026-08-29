@@ -57,26 +57,38 @@ describe("poste-ai.chat.window", function()
     local submit_n = vim.fn.maparg("<CR>", "n", false, true)
     assert.is_table(submit_n)
     assert.is_truthy(submit_n.buffer)
+    -- Up/Down walk the question history (both modes)
+    for _, lhs in ipairs({ "<Up>", "<Down>" }) do
+      for _, mode in ipairs({ "n", "i" }) do
+        local m = vim.fn.maparg(lhs, mode, false, true)
+        assert.is_table(m, lhs .. " in " .. mode)
+        assert.is_truthy(m.buffer)
+      end
+    end
     window.focus_chat()  -- conv keymaps resolve against the conversation buffer
     local toggle = vim.fn.maparg("R", "n", false, true)
     assert.is_table(toggle)
     assert.is_truthy(toggle.buffer)
   end)
 
-  it("shows the chat scope at the leftmost of the context line and winbar", function()
+  it("shows the chat scope at the leftmost of the context line only", function()
     local scope = require("poste-ai.chat.scope")
     window.open()
-    -- empty scope → "-"
+    -- empty scope → "-" on the input context line
     local line = vim.api.nvim_get_option_value("winbar", { win = window.input_win() })
     assert.truthy(line:find(" - ", 1, true))
-    assert.truthy(vim.api.nvim_get_option_value("winbar", { win = window.conversation_win() }):find("[-]", 1, true))
 
-    -- scoped → "pg/app"
-    scope.set("connection", "pg")
-    scope.set("database", "app")
+    -- scoped → render as icon+value pairs on the context line
+    scope.set("connection", "pg", "c")
+    scope.set("database", "app", "d")
     line = vim.api.nvim_get_option_value("winbar", { win = window.input_win() })
-    assert.truthy(line:find(" pg/app ", 1, true))
-    assert.truthy(vim.api.nvim_get_option_value("winbar", { win = window.conversation_win() }):find("[pg/app]", 1, true))
+    assert.truthy(line:find("c pg d app", 1, true))
+
+    -- the conversation winbar carries no scope/context anymore
+    local conv_winbar = vim.api.nvim_get_option_value("winbar", { win = window.conversation_win() })
+    assert.is_nil(conv_winbar:find("pg", 1, true))
+    assert.is_nil(conv_winbar:find("@", 1, true))
+    assert.truthy(conv_winbar:find("PosteAI", 1, true))
     scope.clear()
   end)
 

@@ -41,6 +41,8 @@ local HELP_ACTIONS = {
     { "cancel", "cancel streaming" },
     { "focus_chat", "back to conversation" },
     { "new_session", "new session" },
+    { "history_up", "previous question (from first line)" },
+    { "history_down", "next question / restore draft" },
     { "complete_mention", "@mention completion" },
   },
 }
@@ -138,6 +140,11 @@ local function apply_input_keymaps(buf)
   map(buf, "n", input_key("new_session"), function() require("poste-ai.commands").new_session() end, "new session")
   map(buf, "i", input_key("new_session"), function() require("poste-ai.commands").new_session() end, "new session")
   map(buf, "i", input_key("complete_mention", "<C-Space>"), M.trigger_mention, "@mention completion")
+  local history = require("poste-ai.chat.history")
+  map(buf, "n", input_key("history_up", "<Up>"), function() history.up() end, "previous question")
+  map(buf, "i", input_key("history_up", "<Up>"), function() history.up() end, "previous question")
+  map(buf, "n", input_key("history_down", "<Down>"), function() history.down() end, "next question")
+  map(buf, "i", input_key("history_down", "<Down>"), function() history.down() end, "next question")
 end
 
 local function setup_autocmds()
@@ -282,39 +289,30 @@ function M.set_input_text(text)
   vim.api.nvim_buf_set_lines(st.input_buf, 0, -1, false, lines)
 end
 
-function M.clear_input() M.set_input_text("") end
+function M.clear_input()
+  M.set_input_text("")
+  require("poste-ai.chat.history").reset()
+end
 
---- Update the conversation winbar with provider/model/context/stream state.
---- Leftmost cell shows the chat scope binding ("-", "conn" or "conn/db").
+--- Update the conversation winbar with provider/model and stream state.
 function M.update_winbar()
   local win = M.conversation_win()
   if not win then return end
-  local scope = require("poste-ai.chat.scope")
   local cfg_ok, cfg = pcall(config.resolve_provider)
   local model = cfg_ok and cfg and (config.config.provider .. "/" .. cfg.model) or "no provider"
-  local parts = {
-    "%#PosteAiInputBorder#[" .. scope.display() .. "]%* PosteAI",
-  }
-  if state.active_context then parts[#parts + 1] = " · @" .. state.active_context end
+  local parts = { "%#PosteAiInputBorder#PosteAI%*" }
   parts[#parts + 1] = " · " .. model
   local stream = require("poste-ai.chat.stream")
   if stream.is_busy() then parts[#parts + 1] = " · ⟳" end
   pcall(vim.api.nvim_set_option_value, "winbar", table.concat(parts), { win = win })
 end
 
---- Reserved context line above the input: leftmost scope display plus the
---- active context hint. Set as the input window's winbar.
+--- Reserved context line above the input: leftmost scope display.
 function M.update_context_line()
   local win = M.input_win()
   if not win then return end
   local scope = require("poste-ai.chat.scope")
-  local parts = { "%#PosteAiInputBorder# " .. scope.display() .. " %*" }
-  if state.active_context then
-    parts[#parts + 1] = "%#PosteAiWinbar# · @" .. state.active_context
-    parts[#parts + 1] = " — type / for commands%*"
-  else
-    parts[#parts + 1] = "%#PosteAiWinbar# · type / for commands%*"
-  end
+  local parts = { "%#PosteAiInputBorder# " .. scope.render() .. " %*" }
   pcall(vim.api.nvim_set_option_value, "winbar", table.concat(parts), { win = win })
 end
 

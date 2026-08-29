@@ -5,7 +5,7 @@
 --- the optional `commands` contract field (see context_api.lua):
 ---   commands = { { name, desc, complete?(prefix, scope, cb), run(item, api) } }
 --- `run` receives the chosen candidate (or nil) and an api table with
---- set_scope(key, value) / scope() / clear_scope() to bind the chat scope.
+--- set_scope(key, value, icon?) / scope() / clear_scope() to bind the chat scope.
 
 local M = {}
 
@@ -18,7 +18,7 @@ local st = {
 
 --- The api handed to context command run() callbacks.
 local api = {
-  set_scope = function(key, value) require("poste-ai.chat.scope").set(key, value) end,
+  set_scope = function(key, value, icon) require("poste-ai.chat.scope").set(key, value, icon) end,
   scope = function() return require("poste-ai.chat.scope").snapshot() end,
   clear_scope = function() require("poste-ai.chat.scope").clear() end,
 }

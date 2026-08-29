@@ -3,13 +3,14 @@
 --- domain-specific and set by context slash commands; this module only owns
 --- the storage, ordering, persistence shape and display.
 ---
---- Display contract: no binding → "-", values joined by "/" otherwise
---- ("pg" or "pg/app").
+--- Display contract: no binding → "-"; `display` joins values by "/"
+--- ("pg" or "pg/app"); `render` renders each binding as "<icon> <value>"
+--- (icon optional, set with the binding) joined by a space.
 
 local M = {}
 
 local st = {
-  bindings = {},  -- ordered {{ key, value }}
+  bindings = {},  -- ordered {{ key, value, icon }}
 }
 
 local function find(key)
@@ -20,16 +21,19 @@ local function find(key)
 end
 
 --- Set (or clear with nil value) a binding; upsert keeps declaration order.
+--- An optional icon is carried for the winbar/context-line display.
 --- @param key string
 --- @param value string|nil
-function M.set(key, value)
+--- @param icon string|nil
+function M.set(key, value, icon)
   local i = find(key)
   if value == nil then
     if i then table.remove(st.bindings, i) end
   elseif i then
     st.bindings[i].value = value
+    st.bindings[i].icon = icon
   else
-    st.bindings[#st.bindings + 1] = { key = key, value = value }
+    st.bindings[#st.bindings + 1] = { key = key, value = value, icon = icon }
   end
   M.notify_changed()
 end
@@ -57,17 +61,35 @@ function M.display()
   return table.concat(vals, "/")
 end
 
+--- Context-line display: "-" or each binding rendered as its optional icon
+--- followed by the value, joined by a space. Icons are set by the context
+--- (e.g. poste-db passes "connection"/"database" glyphs via the slash api).
+function M.render()
+  if #st.bindings == 0 then return "-" end
+  local parts = {}
+  for _, b in ipairs(st.bindings) do
+    parts[#parts + 1] = (b.icon and (b.icon .. " ") or "") .. b.value
+  end
+  return table.concat(parts, " ")
+end
+
 --- Persistence shape.
 function M.to_list()
   local out = {}
-  for _, b in ipairs(st.bindings) do out[#out + 1] = { key = b.key, value = b.value } end
+  for _, b in ipairs(st.bindings) do
+    local rec = { key = b.key, value = b.value }
+    if b.icon then rec.icon = b.icon end
+    out[#out + 1] = rec
+  end
   return out
 end
 
 function M.from_list(list)
   st.bindings = {}
   for _, b in ipairs(list or {}) do
-    if b.key and b.value then st.bindings[#st.bindings + 1] = { key = b.key, value = b.value } end
+    if b.key and b.value then
+      st.bindings[#st.bindings + 1] = { key = b.key, value = b.value, icon = b.icon }
+    end
   end
   M.notify_changed()
 end

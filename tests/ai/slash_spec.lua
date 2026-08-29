@@ -112,7 +112,7 @@ describe("poste-ai.chat.slash", function()
           run = function(item, api)
             got_item = item
             got_scope = api
-            api.set_scope("connection", item.label)
+            api.set_scope("connection", item.label, "c")
           end,
         },
       },
@@ -129,6 +129,7 @@ describe("poste-ai.chat.slash", function()
     vim.wait(50, function() return got_item ~= nil end)
     assert.are.equal("pg", got_item.label)
     assert.are.equal("pg", scope.snapshot().connection)
+    assert.are.equal("c pg", scope.render())
     assert.are.equal("pg", got_scope.scope().connection)
     got_scope.set_scope("database", "app")
     assert.are.equal("pg/app", scope.display())
