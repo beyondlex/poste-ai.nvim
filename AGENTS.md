@@ -129,6 +129,13 @@ poste.nvim (shared infra + Rust CLI)      poste-ai.nvim (this repo, zero deps)
 - `vim.fn.chanclose(job_id)` with no stream argument closes **all** pipes
   including stdout → curl dies with EPIPE (exit 23) mid-stream. Close stdin
   only: `chanclose(id, "stdin")`
+- jobstart `on_stdout` data is a newline-split line list whose **last element
+  may be a partial line** (no trailing newline). Re-join with
+  `table.concat(data, "\n")` so the SSE parser's partial-line buffering sees
+  real transport boundaries (`openai._feed`). Never `feed(chunk .. "\n")` per
+  element — it injects a break mid-JSON whenever the transport splits a line,
+  the fragment fails to decode and the delta is silently dropped (this ate
+  random tokens from real GPT-4o streams)
 - Lua patterns have no alternation (`|` doesn't work) — use lookup tables
   (see `READONLY_KINDS` pattern in poste-db's ai/actions.lua)
 - `gsub` returns 2 values — parenthesize `(s:gsub(...))` when concatenating

@@ -95,6 +95,19 @@ local EXIT_MESSAGES = {
   [56] = "connection reset during streaming",
 }
 
+--- Feed one jobstart on_stdout chunk into the SSE parser.
+--- nvim splits the chunk bytes on newlines: elements are the lines WITHOUT
+--- their "\n", and the last element may be a partial line. table.concat
+--- reconstructs the exact byte stream, so the parser's own partial-line
+--- buffering sees the real transport chunk boundaries. Appending "\n" to
+--- each element instead would inject a break mid-JSON whenever the transport
+--- splits a line — the fragment fails to decode and the delta is lost.
+--- @param parser table sse parser
+--- @param data string[] on_stdout line list
+function M._feed(parser, data)
+  parser:feed(table.concat(data, "\n"))
+end
+
 --- Start a streaming chat request.
 --- @param cfg table provider config (base_url, model, api_key)
 --- @param opts table { messages, temperature, max_tokens, timeout_ms }
@@ -183,9 +196,7 @@ function M.stream(cfg, opts, handlers)
     stderr_buffered = true,
     on_stdout = function(_, data, _)
       if not data then return end
-      for _, chunk in ipairs(data) do
-        if chunk then parser:feed(chunk .. "\n") end
-      end
+      M._feed(parser, data)
     end,
     on_stderr = function(_, data, _)
       if not data then return end

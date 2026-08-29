@@ -103,3 +103,57 @@ describe("poste-ai.provider.registry", function()
     assert.are.equal(require("poste-ai.provider.openai"), registry.get({ protocol = "nope" }))
   end)
 end)
+
+describe("poste-ai.provider.openai _feed (stdout chunk boundary)", function()
+  local openai = require("poste-ai.provider.openai")
+  local sse = require("poste-ai.provider.sse")
+
+  local function collect()
+    local deltas, raws = {}, {}
+    local parser = sse.new({
+      on_data = function(payload)
+        local ok, obj = pcall(vim.json.decode, payload, { luanil = { object = true, array = true } })
+        if ok and obj.choices and obj.choices[1] and obj.choices[1].delta
+          and type(obj.choices[1].delta.content) == "string" then
+          deltas[#deltas + 1] = obj.choices[1].delta.content
+        end
+      end,
+      on_raw = function(line) raws[#raws + 1] = line end,
+    })
+    return parser, deltas, raws
+  end
+
+  it("reassembles a JSON line split across two stdout callbacks", function()
+    local parser, deltas, raws = collect()
+    -- transport chunk 1 ends mid-JSON: nvim's list has a single partial
+    -- element (no trailing "")
+    openai._feed(parser, { 'data: {"choices": [{"delta": {"content": " wo' })
+    assert.are.same({}, deltas)
+    -- chunk 2 completes the line
+    openai._feed(parser, { 'rld"}}]}', '' })
+    assert.are.same({ " wo" .. "rld" }, deltas)
+    assert.are.equal(0, #raws)
+    assert.are.equal("", parser:pending())
+  end)
+
+  it("buffers a partial-only chunk until the rest arrives", function()
+    local parser, deltas = collect()
+    openai._feed(parser, { 'data: {"choices": [{"delta": {"content": " he' })
+    assert.are.same({}, deltas)
+    assert.is_true(#parser:pending() > 0)
+    openai._feed(parser, { 'llo"}}]}', '' })
+    assert.are.same({ " hello" }, deltas)
+  end)
+
+  it("handles complete multi-line chunks and lone-newline separators", function()
+    local parser, deltas = collect()
+    openai._feed(parser, { 'data: {"choices": [{"delta": {"content": "a"}}]}', '' })
+    openai._feed(parser, { '', '' })  -- a bare "\n" chunk (SSE event separator)
+    openai._feed(parser, {
+      'data: {"choices": [{"delta": {"content": "b"}}]}',
+      'data: {"choices": [{"delta": {"content": "c"}}]}',
+      '',
+    })
+    assert.are.same({ "a", "b", "c" }, deltas)
+  end)
+end)
