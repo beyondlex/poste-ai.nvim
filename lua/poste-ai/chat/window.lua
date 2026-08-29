@@ -62,6 +62,7 @@ local function create_input_buf()
   vim.api.nvim_set_option_value("filetype", "poste_ai_input", { buf = buf })
   vim.api.nvim_set_option_value("bufhidden", "hide", { buf = buf })
   vim.api.nvim_set_option_value("swapfile", false, { buf = buf })
+  vim.b[buf].completion = false
   return buf
 end
 
