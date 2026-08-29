@@ -8,6 +8,7 @@
 --- always faithful. All styling is extmarks-only.
 
 local render = require("poste-ai.chat.render")
+local tshl = require("poste-ai.chat.tshl")
 
 local M = {}
 
@@ -88,7 +89,7 @@ local function apply_marks(msg, off)
   local specs = render.specs(clines)
   local ids = {}
 
-  local function mark(row, col, length, group, end_row, end_col, hl_mode)
+  local function mark(row, col, length, group, end_row, end_col, hl_mode, conceal)
     if row > max_row then return end
     local opts = {
       id = nil,
@@ -97,6 +98,7 @@ local function apply_marks(msg, off)
       end_col = end_col or (col + length),
       hl_mode = hl_mode or "replace",
     }
+    if conceal then opts.conceal = conceal end
     if length == 0 and not end_row then return end
     local ok, id = pcall(vim.api.nvim_buf_set_extmark, st.buf, st.ns, row, col, opts)
     if ok and id then ids[#ids + 1] = id end
@@ -107,7 +109,16 @@ local function apply_marks(msg, off)
     mark(bg.start + off, 0, 0, bg.group, bg.end_ + off, last_len, "combine")
   end
   for _, m in ipairs(specs.marks) do
-    mark(m.row + off, m.col, m.length, m.group)
+    mark(m.row + off, m.col, m.length, m.group, nil, nil, nil, m.conceal)
+  end
+  -- treesitter syntax highlighting inside fenced code blocks
+  for _, cb in ipairs(specs.code_blocks) do
+    if cb.text ~= "" then
+      local base = cb.start + off
+      for _, h in ipairs(tshl.specs(cb.text, cb.lang)) do
+        mark(h.row + base, h.col, 0, h.group, h.end_row + base, h.end_col, "combine")
+      end
+    end
   end
 
   -- labels & special content styling

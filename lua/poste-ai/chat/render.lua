@@ -4,16 +4,21 @@
 --- vs "source" view is simply whether the extmarks are applied, so streaming
 --- never rewrites buffer lines — no flicker by construction.
 ---
+--- Markdown markers (fences, heading hashes, bullets, quote carets, inline
+--- code backticks, bold/italic markers) carry a `conceal` replacement string;
+--- conceal is display-only, so yanks still contain the raw markdown.
+---
 --- V1 supports: fenced code blocks (bg + fence/lang styling), headings,
---- horizontal rules, blockquotes, list bullets and inline code. Bold/italic
---- and tables are left as plain text.
+--- horizontal rules, blockquotes, list bullets, inline code, bold/italic.
+--- Tables are left as plain text.
 
 local M = {}
 
 --- Scan lines and produce highlight specs.
 --- @param lines string[] raw markdown lines
---- @return table specs { marks = {{row,col,length,group,hl_mode}}, bg_ranges = {{start,end_,group}}, code_blocks = {{start,end_,lang,text}} }
+--- @return table specs { marks = {{row,col,length,group,conceal?}}, bg_ranges = {{start,end_,group}}, code_blocks = {{start,end_,lang,text}} }
 ---   rows are 0-based relative to the first input line; `end_` is inclusive.
+---   `conceal`, when present, is the replacement text ("" hides the range).
 function M.specs(lines)
   local marks = {}
   local bg_ranges = {}
@@ -46,9 +51,10 @@ function M.specs(lines)
         close_row = n
         i = n
       end
-      marks[#marks + 1] = { row = open_row, col = 0, length = #line, group = "PosteAiCodeFence" }
+      marks[#marks + 1] = { row = open_row, col = 0, length = #line, group = "PosteAiCodeFence", conceal = "" }
       if close_row <= n - 1 then
-        marks[#marks + 1] = { row = close_row, col = 0, length = #(lines[close_row + 1] or ""), group = "PosteAiCodeFence" }
+        local close_line = lines[close_row + 1] or ""
+        marks[#marks + 1] = { row = close_row, col = 0, length = #close_line, group = "PosteAiCodeFence", conceal = "" }
       end
       if lang ~= "" then
         local col = line:find(lang, 1, true)
@@ -69,15 +75,23 @@ function M.specs(lines)
       end
     elseif line:match("^%s*#+%s+") then
       marks[#marks + 1] = { row = i - 1, col = 0, length = #line, group = "PosteAiHeading" }
+      local hash, sp = line:match("^%s*()#+()%s")
+      if hash then
+        marks[#marks + 1] = { row = i - 1, col = hash - 1, length = sp - hash + 1, group = "PosteAiHeading", conceal = "" }
+      end
     elseif line:match("^%s*(%-%-%-+)%s*$") or line:match("^%s*(%*%*%*+)%s*$") or line:match("^%s*(___)%s*$") then
       marks[#marks + 1] = { row = i - 1, col = 0, length = #line, group = "PosteAiHr" }
     elseif line:match("^%s*>") then
       marks[#marks + 1] = { row = i - 1, col = 0, length = #line, group = "PosteAiQuote" }
+      local qfrom, qto = line:match("^%s*()>()%s")
+      if qfrom then
+        marks[#marks + 1] = { row = i - 1, col = qfrom - 1, length = qto - qfrom + 1, group = "PosteAiQuote", conceal = "" }
+      end
     else
       -- list bullets / ordered numbers
       local col = line:match("^%s*()([%-%*%+])%s")
       if col then
-        marks[#marks + 1] = { row = i - 1, col = col - 1, length = 1, group = "PosteAiBullet" }
+        marks[#marks + 1] = { row = i - 1, col = col - 1, length = 2, group = "PosteAiBullet", conceal = "•" }
       else
         local num = line:match("^%s*(%d+)%.%s")
         if num then
@@ -85,13 +99,47 @@ function M.specs(lines)
           marks[#marks + 1] = { row = i - 1, col = ncol - 1, length = #num + 1, group = "PosteAiBullet" }
         end
       end
-      -- inline code spans (skip fence lines)
+      -- inline code spans (skip fence lines): highlight inner text, hide ticks
       local pos = 1
       while true do
         local s, e = line:find("`[^`]+`", pos)
         if not s then break end
         marks[#marks + 1] = { row = i - 1, col = s, length = e - s - 1, group = "PosteAiInlineCode" }
+        marks[#marks + 1] = { row = i - 1, col = s - 1, length = 1, group = "PosteAiInlineCode", conceal = "" }
+        marks[#marks + 1] = { row = i - 1, col = e - 1, length = 1, group = "PosteAiInlineCode", conceal = "" }
         pos = e + 1
+      end
+      -- bold / italic: highlight inner span, hide the marker runs
+      local taken = {}  -- 1-based occupied intervals on this line
+      pos = 1
+      while true do
+        local s, e = line:find("%*%*[^%s%*][^%*]*%*%*", pos)
+        if not s then break end
+        marks[#marks + 1] = { row = i - 1, col = s + 1, length = e - s - 3, group = "PosteAiBold" }
+        marks[#marks + 1] = { row = i - 1, col = s - 1, length = 2, group = "PosteAiBold", conceal = "" }
+        marks[#marks + 1] = { row = i - 1, col = e - 2, length = 2, group = "PosteAiBold", conceal = "" }
+        taken[#taken + 1] = { s, e }
+        pos = e + 1
+      end
+      local function free(a, b)
+        for _, iv in ipairs(taken) do
+          if a <= iv[2] and b >= iv[1] then return false end
+        end
+        return true
+      end
+      for _, pat in ipairs({ "%*[^%s%*][^%*]*%*", "_[^%s_][^_]*_" }) do
+        pos = 1
+        while true do
+          local s, e = line:find(pat, pos)
+          if not s then break end
+          if free(s, e) then
+            marks[#marks + 1] = { row = i - 1, col = s, length = e - s - 1, group = "PosteAiItalic" }
+            marks[#marks + 1] = { row = i - 1, col = s - 1, length = 1, group = "PosteAiItalic", conceal = "" }
+            marks[#marks + 1] = { row = i - 1, col = e - 1, length = 1, group = "PosteAiItalic", conceal = "" }
+            taken[#taken + 1] = { s, e }
+          end
+          pos = e + 1
+        end
       end
     end
   end

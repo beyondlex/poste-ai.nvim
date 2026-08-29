@@ -75,6 +75,38 @@ describe("poste-ai.chat.conversation", function()
     assert.is_true(#vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, {}) > 0)
   end)
 
+  it("sets conceal opts on marker extmarks (display-only; buffer keeps raw text)", function()
+    conversation.begin_assistant("m1")
+    conversation.update_last_assistant("# Heading\n- item\n```sql\nSELECT 1\n```")
+    local ns = conversation._state().ns
+    local concealed = {}
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })) do
+      if m[4].conceal ~= nil then concealed[#concealed + 1] = m end
+    end
+    -- heading prefix, bullet "- ", both fence lines
+    assert.is_true(#concealed >= 4)
+    -- raw markdown is untouched in the buffer
+    assert.are.same(
+      { "✦ m1", "# Heading", "- item", "```sql", "SELECT 1", "```" },
+      lines())
+  end)
+
+  it("applies treesitter highlight marks inside code blocks when a parser exists", function()
+    local has_lua = pcall(vim.treesitter.get_string_parser, "", "lua")
+    if not has_lua then return end
+    local tshl = require("poste-ai.chat.tshl")
+    tshl._test._reset()
+    conversation.begin_assistant("m1")
+    conversation.update_last_assistant("```lua\nlocal x = 1\n```")
+    local ns = conversation._state().ns
+    local ts_groups = {}
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })) do
+      local g = m[4].hl_group
+      if g and g:find("^@") then ts_groups[#ts_groups + 1] = g end
+    end
+    assert.is_true(#ts_groups > 0)
+  end)
+
   it("rebuilds from a stored message list", function()
     conversation.set_messages({
       { role = "user", text = "q1" },

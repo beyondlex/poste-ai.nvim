@@ -51,6 +51,18 @@ function M.check()
   else
     vim.health.info("no contexts registered (generic chat with file @mentions only)")
   end
+
+  -- optional: code-block syntax highlighting falls back to plain background
+  -- optional: code-block syntax highlighting falls back to plain background
+  local have = {}
+  for _, lang in ipairs({ "sql", "lua", "python", "bash", "javascript", "json" }) do
+    if pcall(vim.treesitter.get_string_parser, "", lang) then have[#have + 1] = lang end
+  end
+  if #have > 0 then
+    vim.health.ok("treesitter parsers for code blocks: " .. table.concat(have, ", "))
+  else
+    vim.health.info("no treesitter parsers — code blocks render without syntax highlighting")
+  end
 end
 
 return M

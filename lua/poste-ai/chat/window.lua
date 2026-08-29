@@ -73,6 +73,8 @@ local function set_win_opts(win, kind)
     pcall(vim.api.nvim_set_option_value, k, v, { win = win })
   end
   if kind == "conv" then
+    -- rendered view conceals markdown markers (display-only; yank keeps raw text)
+    pcall(vim.api.nvim_set_option_value, "conceallevel", 2, { win = win })
     pcall(vim.api.nvim_set_option_value, "cursorline", true, { win = win })
     pcall(vim.api.nvim_set_option_value, "cursorlineopt", "line", { win = win })
   end
