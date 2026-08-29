@@ -277,14 +277,38 @@ function M.update_last_assistant(text)
   apply_marks(last, rows.content_start)
 end
 
-function M.append_user(text) return M.append({ role = "user", text = text }) end
-function M.append_error(text) return M.append({ role = "error", text = text }) end
-function M.append_note(text) return M.append({ role = "note", text = text }) end
+function M.append_user(text) return M.append({ role = "user", text = text, ts = os.time() }) end
+function M.append_error(text) return M.append({ role = "error", text = text, ts = os.time() }) end
+function M.append_note(text) return M.append({ role = "note", text = text, ts = os.time() }) end
 
 --- Begin an empty assistant turn (placeholder for streaming).
 --- @param model string|nil
 function M.begin_assistant(model)
-  return M.append({ role = "assistant", text = "", model = model })
+  return M.append({ role = "assistant", text = "", model = model, ts = os.time() })
+end
+
+--- User questions for the outline drawer, newest first.
+--- @return table[] { text, ts, row, idx } `row` is the 0-based buffer row of the label
+function M.outline_entries()
+  local out = {}
+  for i, msg in ipairs(st.messages) do
+    if msg.role == "user" and msg.text and msg.text ~= "" then
+      local rows = st.rows[i]
+      out[#out + 1] = {
+        text = msg.text,
+        ts = msg.ts,
+        row = rows.label_row or rows.content_start,
+        idx = i,
+      }
+    end
+  end
+  -- newest first; same-second messages keep their conversation order
+  table.sort(out, function(a, b)
+    local at, bt = a.ts or 0, b.ts or 0
+    if at ~= bt then return at > bt end
+    return a.idx > b.idx
+  end)
+  return out
 end
 
 --- Raw text of the last non-empty assistant message (for yank-last).

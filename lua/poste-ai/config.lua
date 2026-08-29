@@ -39,6 +39,7 @@ M.defaults = {
       focus_input = "i",
       cancel = "<Esc>",
       toggle_render = "R",
+      show_outline = "gs",
       yank_last_answer = "Y",
       next_codeblock = "]]",
       prev_codeblock = "[[",
@@ -46,6 +47,11 @@ M.defaults = {
       yank_codeblock = "gy",
       append_codeblock = "ga",
       help = "g?",
+    },
+    chat_outline = {
+      jump = "<CR>",
+      close = "q",
+      cancel = "<Esc>",
     },
     chat_input = {
       submit = "<CR>",          -- normal mode; in insert mode Enter inserts a newline

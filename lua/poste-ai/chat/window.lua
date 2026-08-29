@@ -26,6 +26,7 @@ local HELP_ACTIONS = {
     { "focus_input", "jump to input" },
     { "cancel", "cancel streaming" },
     { "toggle_render", "toggle markdown render/source" },
+    { "show_outline", "show question outline" },
     { "execute_codeblock", "execute code block under cursor" },
     { "yank_codeblock", "yank code block under cursor" },
     { "append_codeblock", "append code block to origin buffer" },
@@ -106,6 +107,7 @@ local function apply_conv_keymaps(buf)
   map(buf, "n", key("focus_input"), function() M.focus_input(true) end, "jump to input")
   map(buf, "n", key("cancel"), function() stream.cancel() end, "cancel streaming")
   map(buf, "n", key("toggle_render"), function() conversation.toggle_source_mode() end, "toggle render/source")
+  map(buf, "n", key("show_outline"), function() require("poste-ai.chat.outline").toggle() end, "show question outline")
   map(buf, "n", key("yank_last_answer"), function() actions.yank_last_answer() end, "yank last answer")
   map(buf, "n", key("next_codeblock"), function() actions.jump_codeblock(1) end, "next code block")
   map(buf, "n", key("prev_codeblock"), function() actions.jump_codeblock(-1) end, "previous code block")
