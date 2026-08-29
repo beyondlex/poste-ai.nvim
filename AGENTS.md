@@ -27,11 +27,14 @@ domain **contexts**. Think a much smaller avante.nvim.
 | `init.lua` | `setup(opts)`, re-exports `register_context` / `chat` / `send` / `cancel` |
 | `config.lua` | providers / request / chat layout / keymaps; `get_keymap(section, action, default)`, `false` disables |
 | `state.lua` | cross-cutting flags (active context, origin buffer) |
-| `context_api.lua` | context contract: `system_prompt`, `mention.{match,complete,resolve}`, `codeblock.{langs,confirm,execute}` |
+| `context_api.lua` | context contract: `system_prompt(scope)`, `mention.{match,complete,resolve}`, `codeblock.{langs,confirm,execute}`, optional `commands` (slash palette) |
 | `provider/sse.lua` | pure-function SSE line parser (feed/flush, no I/O) — primary test target |
 | `provider/openai.lua` | OpenAI-compatible streaming adapter over `curl -N` + `jobstart` |
 | `provider/registry.lua` | adapter registry (require paths or adapter tables, keyed by `protocol`) |
-| `chat/window.lua` | two-pane sidebar: `poste://chat` + `poste://chat_input`, all keymaps |
+| `chat/window.lua` | two-pane sidebar: `poste://chat` + `poste://chat_input`, all keymaps; winbar scope display + input context line |
+| `chat/slash.lua` | slash command framework: built-ins (`/new` `/session` `/models`) + context `commands`; intercepts input submission |
+| `chat/popup.lua` | generic list palette floating above the input window (Up/Down/Enter/Esc via temporary insert-mode keymaps) |
+| `chat/scope.lua` | ordered key/value chat scope (connection, database …): snapshot, display ("-", "conn", "conn/db"), session stamping |
 | `chat/conversation.lua` | conversation buffer composition + render extmarks; owns message list and code-block lookup |
 | `chat/render.lua` | pure markdown → extmark specs (fences/headings/lists/quotes/inline code) |
 | `chat/stream.lua` | send pipeline: mentions → context blocks → provider stream → throttled flush; busy/cancel/follow |
@@ -64,9 +67,11 @@ poste.nvim (shared infra + Rust CLI)      poste-ai.nvim (this repo, zero deps)
   satellite's context, full stop
 - **Integration code lives on the poste-db side**: `lua/poste-db/ai/`
   (`init.lua` registers the `db` context; `mentions.lua` handles
-  `@conn/db[/table]`; `system_prompt.lua` injects plugin knowledge;
-  `actions.lua` executes ```sql blocks through poste-db's executor into the
-  dataset view). It `pcall(require, "poste-ai")` in `setup()` and retries on
+  `@conn/db[/table]`; `system_prompt.lua` injects plugin knowledge and the
+  chat scope; `commands.lua` provides `/connections` + `/databases` slash
+  commands that bind the chat scope; `actions.lua` executes ```sql blocks
+  through poste-db's executor into the dataset view, preferring the chat
+  scope over the SQL buffer context). It `pcall(require, "poste-ai")` in `setup()` and retries on
   `:PosteDbChat`, so both install orders work
 - **Contract coupling**: the context contract in `context_api.lua` is a
   cross-repo API. Changing its shape requires updating `lua/poste-db/ai/` in

@@ -37,6 +37,10 @@ M.chat = function(context_id) require("poste-ai.commands").toggle_chat(context_i
 M.send = function(text) return require("poste-ai.chat.stream").send(text) end
 M.cancel = function() require("poste-ai.chat.stream").cancel() end
 
+--- Current chat scope snapshot (map of slash-command bindings, e.g.
+--- { connection = "pg", database = "app" }) — read by sibling plugins.
+M.scope = function() return require("poste-ai.chat.scope").snapshot() end
+
 M._test = { config = require("poste-ai.config") }
 
 return M

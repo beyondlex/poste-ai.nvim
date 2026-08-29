@@ -63,6 +63,23 @@ describe("poste-ai.chat.window", function()
     assert.is_truthy(toggle.buffer)
   end)
 
+  it("shows the chat scope at the leftmost of the context line and winbar", function()
+    local scope = require("poste-ai.chat.scope")
+    window.open()
+    -- empty scope → "-"
+    local line = vim.api.nvim_get_option_value("winbar", { win = window.input_win() })
+    assert.truthy(line:find(" - ", 1, true))
+    assert.truthy(vim.api.nvim_get_option_value("winbar", { win = window.conversation_win() }):find("[-]", 1, true))
+
+    -- scoped → "pg/app"
+    scope.set("connection", "pg")
+    scope.set("database", "app")
+    line = vim.api.nvim_get_option_value("winbar", { win = window.input_win() })
+    assert.truthy(line:find(" pg/app ", 1, true))
+    assert.truthy(vim.api.nvim_get_option_value("winbar", { win = window.conversation_win() }):find("[pg/app]", 1, true))
+    scope.clear()
+  end)
+
   it("marks the input pane with a colored left gutter", function()
     window.open()
     local input_win = window.input_win()

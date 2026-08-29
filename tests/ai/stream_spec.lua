@@ -133,4 +133,33 @@ describe("poste-ai.chat.stream", function()
     assert.are.equal(2, #captured)  -- system + user (assistant empty filtered)
     assert.are.equal("capture me", captured[2].content)
   end)
+
+  it("records the chat scope on user messages and passes it to the system prompt", function()
+    local scope = require("poste-ai.chat.scope")
+    local captured_scope
+    context_api.register("tc", {
+      system_prompt = function(sc)
+        captured_scope = sc
+        return "domain knowledge"
+      end,
+    })
+    context_api.set_active("tc")
+    scope.set("connection", "pg")
+    scope.set("database", "app")
+
+    assert.is_true(stream.send("query something"))
+    vim.wait(3000, function() return not stream.is_busy() end)
+
+    assert.are.same({ connection = "pg", database = "app" }, captured_scope)
+    local msgs = session.current().messages
+    assert.are.equal("user", msgs[1].role)
+    assert.are.same({ connection = "pg", database = "app" }, msgs[1].scope)
+    -- the system prompt composed for the request contains the domain part
+    local reqs = require("tests.ai.fixtures.mock_adapter").state.requests
+    assert.is_true(#reqs > 0)
+    assert.truthy(reqs[#reqs].opts.messages[1].content:find("domain knowledge"))
+
+    context_api.set_active(nil)
+    scope.clear()
+  end)
 end)

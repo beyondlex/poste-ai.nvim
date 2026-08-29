@@ -1,8 +1,10 @@
 --- Context registry — the extension point sibling plugins use to teach the
 --- generic chat about their domain. A context provides:
 ---
----   system_prompt() → string           static domain knowledge (feature
----                                      help, conventions); called per request
+---   system_prompt(scope) → string      domain knowledge (feature help,
+---                                      conventions); called per request with
+---                                      the chat scope snapshot (nil keys
+---                                      unset) — implementations may ignore it
 ---   mention = {
 ---     match(token) → ref|nil           classify a @token ("my-conn/mydb")
 ---     complete(prefix, cb) → candidates  completion items {label, description}
@@ -13,6 +15,21 @@
 ---     langs = { "sql", ... }           fenced languages it can execute
 ---     confirm(text) → boolean|nil      optional gate before execute
 ---     execute(text, refs, cb)          run it; cb(err, note) when done
+---   }
+---   commands = {                       optional slash commands for the input
+---     {                                 palette (typed "/" in the chat input):
+---       name = "connections"            invoked as /connections
+---       desc = "..."                    shown in the palette
+---       complete(prefix, scope, cb)     optional argument candidates
+---                                      ({label, description, ...}); may
+---                                      return the list synchronously instead
+---                                      of calling cb
+---       run(item, api)                  execute; item is the chosen candidate
+---                                      or nil; api exposes set_scope(key,
+---                                      value), scope(), clear_scope() to
+---                                      bind the chat scope (displayed above
+---                                      the input and persisted per message)
+---     }
 ---   }
 ---
 --- Note: "context" here is an AI-domain plugin integration — unrelated to the
@@ -73,13 +90,15 @@ Guidelines:
 - Stay concise and practical; you render in an editor side panel.
 - When several options exist, recommend one instead of enumerating them all.]]
 
---- Compose the system prompt: base + active context knowledge.
+--- Compose the system prompt: base + active context knowledge. The context
+--- system_prompt receives the chat scope snapshot (map of bound keys).
 --- @return string
 function M.system_prompt()
   local parts = { BASE_PROMPT }
   local spec = M.active()
   if spec and type(spec.system_prompt) == "function" then
-    local ok, out = pcall(spec.system_prompt)
+    local scope = require("poste-ai.chat.scope").snapshot()
+    local ok, out = pcall(spec.system_prompt, scope)
     if ok and type(out) == "string" and out ~= "" then
       parts[#parts + 1] = out
     end

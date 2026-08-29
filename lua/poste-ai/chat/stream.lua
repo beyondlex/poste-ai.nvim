@@ -146,7 +146,10 @@ function M.send(text)
     local user_content = text
     if blocks_md ~= "" then user_content = text .. "\n\n" .. blocks_md end
 
-    local user_msg = { role = "user", text = text, content = user_content, ts = os.time(), refs = refs }
+    local user_msg = {
+      role = "user", text = text, content = user_content, ts = os.time(), refs = refs,
+      scope = require("poste-ai.chat.scope").snapshot(),
+    }
     cur.messages[#cur.messages + 1] = user_msg
 
     conversation.append_user(text)
@@ -205,11 +208,26 @@ function M.send(text)
 end
 
 --- Submit whatever is in the input buffer (clears it on success).
+--- Slash commands ("/new", "/connections", ...) are intercepted and executed
+--- instead of being sent to the LLM.
 function M.submit_from_input()
+  local slash = require("poste-ai.chat.slash")
   local text = window.input_text()
   if (text:gsub("%s", "")) == "" then return end
   window.open()  -- no-op when open; creates panes when the user closed them
-  if M.send(text) then window.clear_input() end
+  if slash.submit(text) then
+    -- argument-mode popups keep the input (the user still filters/picks);
+    -- executed commands have already cleaned it up themselves
+    if not require("poste-ai.chat.popup").is_open() then
+      slash.reset()
+      window.clear_input()
+    end
+    return
+  end
+  if M.send(text) then
+    window.clear_input()
+    slash.reset()
+  end
 end
 
 --- Cancel the in-flight request (no-op when idle).

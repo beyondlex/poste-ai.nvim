@@ -177,6 +177,14 @@ local function setup_autocmds()
       require("poste-ai.chat.conversation").redraw_marks()
     end,
   })
+  -- slash command palette: re-target the popup as the input text changes
+  if st.input_buf and vim.api.nvim_buf_is_valid(st.input_buf) then
+    vim.api.nvim_create_autocmd("TextChangedI", {
+      group = st.augroup,
+      buffer = st.input_buf,
+      callback = function() require("poste-ai.chat.slash").on_input_changed() end,
+    })
+  end
 end
 
 --- Open (or re-open) the chat sidebar. Returns true when a new window pair
@@ -212,6 +220,7 @@ function M.open()
   apply_input_keymaps(st.input_buf)
   setup_autocmds()
   M.update_winbar()
+  M.update_context_line()
   return true
 end
 
@@ -275,16 +284,36 @@ end
 function M.clear_input() M.set_input_text("") end
 
 --- Update the conversation winbar with provider/model/context/stream state.
+--- Leftmost cell shows the chat scope binding ("-", "conn" or "conn/db").
 function M.update_winbar()
   local win = M.conversation_win()
   if not win then return end
+  local scope = require("poste-ai.chat.scope")
   local cfg_ok, cfg = pcall(config.resolve_provider)
   local model = cfg_ok and cfg and (config.config.provider .. "/" .. cfg.model) or "no provider"
-  local parts = { " PosteAI" }
+  local parts = {
+    "%#PosteAiInputBorder#[" .. scope.display() .. "]%* PosteAI",
+  }
   if state.active_context then parts[#parts + 1] = " · @" .. state.active_context end
   parts[#parts + 1] = " · " .. model
   local stream = require("poste-ai.chat.stream")
   if stream.is_busy() then parts[#parts + 1] = " · ⟳" end
+  pcall(vim.api.nvim_set_option_value, "winbar", table.concat(parts), { win = win })
+end
+
+--- Reserved context line above the input: leftmost scope display plus the
+--- active context hint. Set as the input window's winbar.
+function M.update_context_line()
+  local win = M.input_win()
+  if not win then return end
+  local scope = require("poste-ai.chat.scope")
+  local parts = { "%#PosteAiInputBorder# " .. scope.display() .. " %*" }
+  if state.active_context then
+    parts[#parts + 1] = "%#PosteAiWinbar# · @" .. state.active_context
+    parts[#parts + 1] = " — type / for commands%*"
+  else
+    parts[#parts + 1] = "%#PosteAiWinbar# · type / for commands%*"
+  end
   pcall(vim.api.nvim_set_option_value, "winbar", table.concat(parts), { win = win })
 end
 
@@ -321,7 +350,7 @@ end
 
 --- Notify-style keymap cheat sheet (g?).
 function M.show_help()
-  local lines = { "PosteAI keymaps:" }
+  local lines = { "PosteAI keymaps:", "  (in the input, type / for slash commands: /new /session /models …)" }
   for _, section in ipairs({ "chat_window", "chat_input" }) do
     lines[#lines + 1] = "  " .. section .. ":"
     for _, action in ipairs(HELP_ACTIONS[section]) do

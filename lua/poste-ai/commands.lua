@@ -24,9 +24,10 @@ function M.open_chat(context_id)
   local session = require("poste-ai.chat.session")
   window.open()
   local s = session.current()
+  require("poste-ai.chat.scope").from_list(s.scope)
   conversation.set_messages(s.messages)
   if conversation.is_empty() then
-    conversation.append_note("PosteAI ready — type @ to reference files or connections, Enter to send.")
+    conversation.append_note("PosteAI ready — type @ for mentions, / for commands, Enter to send.")
   end
   window.update_winbar()
   window.focus_input(true)
@@ -47,16 +48,31 @@ end
 function M.new_session()
   local session = require("poste-ai.chat.session")
   local conversation = require("poste-ai.chat.conversation")
+  local scope = require("poste-ai.chat.scope")
   session.new()
+  scope.clear()
   conversation.set_messages({})
-  conversation.append_note("New session — type @ to reference files or connections, Enter to send.")
+  conversation.append_note("New session — type @ for mentions, / for commands, Enter to send.")
   notify("new session started")
+end
+
+--- Switch to a stored session by id and restore its view + scope.
+--- @param id string
+function M.open_session(id)
+  local session = require("poste-ai.chat.session")
+  local conversation = require("poste-ai.chat.conversation")
+  local scope = require("poste-ai.chat.scope")
+  local s = session.switch(id)
+  if not s then notify("failed to load session", vim.log.levels.ERROR) return end
+  scope.from_list(s.scope)
+  conversation.set_messages(s.messages or {})
+  require("poste-ai.chat.window").update_winbar()
+  notify("switched to " .. tostring(s.name))
 end
 
 --- Pick and switch a stored session.
 function M.switch_session()
   local session = require("poste-ai.chat.session")
-  local conversation = require("poste-ai.chat.conversation")
   local items = session.list()
   if #items == 0 then notify("no saved sessions yet", vim.log.levels.WARN) return end
   vim.ui.select(items, {
@@ -67,10 +83,7 @@ function M.switch_session()
     end,
   }, function(choice)
     if not choice then return end
-    local s = session.switch(choice.id)
-    if not s then notify("failed to load session", vim.log.levels.ERROR) return end
-    conversation.set_messages(s.messages or {})
-    notify("switched to " .. tostring(s.name))
+    M.open_session(choice.id)
   end)
 end
 

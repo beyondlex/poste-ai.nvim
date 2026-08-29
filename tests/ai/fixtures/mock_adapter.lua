@@ -6,15 +6,18 @@ local M = {}
 M.state = {
   chunks = { "Hello", " world" },
   delay_ms = 10,
+  requests = {},
 }
 
 function M.reset(chunks, delay_ms)
   M.state.chunks = chunks or { "Hello", " world" }
   M.state.delay_ms = delay_ms or 10
+  M.state.requests = {}
 end
 
 --- @param handlers table { on_delta, on_finish, on_error }
-function M.stream(_cfg, _opts, handlers)
+function M.stream(cfg, opts, handlers)
+  M.state.requests[#M.state.requests + 1] = { cfg = cfg, opts = opts }
   local handle = { cancelled = false }
   local acc = {}
   local i = 0
