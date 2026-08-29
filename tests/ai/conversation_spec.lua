@@ -133,4 +133,40 @@ describe("poste-ai.chat.conversation", function()
     local marks = vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, {})
     assert.is_true(#marks >= 3)
   end)
+
+  it("shows a right-aligned timestamp virt text on label rows without touching the buffer", function()
+    conversation.append_user("hello")
+    conversation.begin_assistant("m1")
+    conversation.update_last_assistant("reply")
+    local ns = conversation._state().ns
+    local labels = {}
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })) do
+      if m[4].virt_text then labels[#labels + 1] = m end
+    end
+    assert.are.equal(2, #labels)
+    for _, m in ipairs(labels) do
+      local chunks = m[4].virt_text
+      assert.truthy(chunks[#chunks][1]:match("^%d%d%-%d%d %d%d:%d%d:%d%d$"))
+    end
+    -- virt text never lands in the buffer
+    assert.are.same({ "❯ You", "hello", "", "✦ m1", "reply" }, lines())
+  end)
+
+  it("pads the timestamp to the window width", function()
+    local win = vim.api.nvim_open_win(buf, false, {
+      relative = "editor", row = 0, col = 0, width = 60, height = 5,
+    })
+    conversation.append_user("hello")
+    local ns = conversation._state().ns
+    local vt
+    for _, m in ipairs(vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })) do
+      if m[4].virt_text then vt = m[4].virt_text break end
+    end
+    assert.is_not_nil(vt)
+    local pad = #vt[1][1]
+    local ts = vt[2][1]
+    -- timestamp ends one column before the window edge (60 - 1 margin)
+    assert.are.equal(59, vim.fn.strdisplaywidth("❯ You") + pad + vim.fn.strdisplaywidth(ts))
+    pcall(vim.api.nvim_win_close, win, true)
+  end)
 end)

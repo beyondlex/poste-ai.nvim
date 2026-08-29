@@ -162,6 +162,13 @@ local function setup_autocmds()
       end
     end,
   })
+  -- re-align right-side label timestamps when the chat pane is resized
+  vim.api.nvim_create_autocmd("WinResized", {
+    group = st.augroup,
+    callback = function()
+      require("poste-ai.chat.conversation").redraw_marks()
+    end,
+  })
 end
 
 --- Open (or re-open) the chat sidebar. Returns true when a new window pair

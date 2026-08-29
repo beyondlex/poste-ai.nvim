@@ -35,6 +35,14 @@ local function label_for(msg)
   return LABELS[msg.role]
 end
 
+--- Timestamp text for a message, defaulting to now when unset.
+--- @param ts number|nil unix seconds
+--- @return string
+local function ts_text(ts)
+  if type(ts) ~= "number" or ts <= 0 then ts = os.time() end
+  return os.date("%m-%d %H:%M:%S", ts)
+end
+
 local function content_lines(msg)
   return vim.split(msg.text or "", "\n", { plain = true })
 end
@@ -45,6 +53,16 @@ end
 
 local function buf_ready()
   return st.buf ~= nil and vim.api.nvim_buf_is_valid(st.buf)
+end
+
+--- Width of the window showing the conversation buffer (nil when hidden).
+--- @return number|nil
+local function conv_width()
+  if not buf_ready() then return nil end
+  for _, w in ipairs(vim.fn.win_findbuf(st.buf)) do
+    if vim.api.nvim_win_is_valid(w) then return vim.api.nvim_win_get_width(w) end
+  end
+  return nil
 end
 
 --- Build the buffer lines of one message block; returns lines + row anchors.
@@ -128,8 +146,23 @@ local function apply_marks(msg, off)
   end
   if rows then
     if rows.label_row ~= nil then
+      local label = label_for(msg)
       local group = LABEL_GROUPS[msg.role] or "PosteAiAssistantLabel"
-      mark(rows.label_row, 0, #label_for(msg), group)
+      mark(rows.label_row, 0, #label, group)
+      -- right-aligned gray timestamp on the label row; virt text only, so the
+      -- buffer text stays untouched (copy/yank exactness preserved). Leave a
+      -- 1-column right margin — text flush at the window edge gets clipped.
+      local ts = ts_text(msg.ts)
+      local width = conv_width() or 60
+      local pad = math.max(1, width - 1 - vim.fn.strdisplaywidth(label) - vim.fn.strdisplaywidth(ts))
+      local ok_vt, id_vt = pcall(vim.api.nvim_buf_set_extmark, st.buf, st.ns, rows.label_row, 0, {
+        virt_text = {
+          { string.rep(" ", pad), "PosteAiTimestamp" },
+          { ts, "PosteAiTimestamp" },
+        },
+        virt_text_pos = "eol",
+      })
+      if ok_vt and id_vt then ids[#ids + 1] = id_vt end
     end
     if msg.role == "error" then
       for r = rows.content_start, rows.content_end do
@@ -181,7 +214,7 @@ function M.set_messages(messages)
   local all = {}
   for i, msg in ipairs(messages) do
     if i > 1 then all[#all + 1] = "" end
-    local stored = { role = msg.role, text = msg.text, model = msg.model }
+    local stored = { role = msg.role, text = msg.text, model = msg.model, ts = msg.ts }
     st.messages[#st.messages + 1] = stored
     local lines, rows = block_lines(stored, #all)
     for _, l in ipairs(lines) do all[#all + 1] = l end
@@ -199,7 +232,7 @@ end
 --- @return table the stored message
 function M.append(msg)
   if not buf_ready() then return nil end
-  local stored = { role = msg.role, text = msg.text or "", model = msg.model }
+  local stored = { role = msg.role, text = msg.text or "", model = msg.model, ts = msg.ts }
   local sep = #st.messages > 0
 
   -- A fresh/emptied buffer still reports one empty line; the first block must
@@ -282,6 +315,14 @@ function M.set_source_mode(enabled)
     for i, msg in ipairs(st.messages) do
       apply_marks(msg, st.rows[i].content_start)
     end
+  end
+end
+
+--- Re-apply all extmarks (e.g. window resize moves the right-aligned labels).
+function M.redraw_marks()
+  if not buf_ready() or st.source_mode then return end
+  for i, msg in ipairs(st.messages) do
+    apply_marks(msg, st.rows[i].content_start)
   end
 end
 
