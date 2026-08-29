@@ -35,7 +35,8 @@ local HELP_ACTIONS = {
     { "help", "show this help" },
   },
   chat_input = {
-    { "submit", "send message" },
+    { "submit", "send message (normal mode)" },
+    { "submit_insert", "send message (insert mode; Enter inserts newline)" },
     { "cancel", "cancel streaming" },
     { "focus_chat", "back to conversation" },
     { "new_session", "new session" },
@@ -77,6 +78,10 @@ local function set_win_opts(win, kind)
     pcall(vim.api.nvim_set_option_value, "conceallevel", 2, { win = win })
     pcall(vim.api.nvim_set_option_value, "cursorline", true, { win = win })
     pcall(vim.api.nvim_set_option_value, "cursorlineopt", "line", { win = win })
+  elseif kind == "input" then
+    -- colored left gutter so the input pane is visually distinct
+    pcall(vim.api.nvim_set_option_value, "signcolumn", "yes", { win = win })
+    pcall(vim.api.nvim_set_option_value, "statuscolumn", "%#PosteAiInputBorder#▍ ", { win = win })
   end
 end
 
@@ -114,7 +119,7 @@ local function apply_input_keymaps(buf)
   local stream = require("poste-ai.chat.stream")
   local submit = function() stream.submit_from_input() end
   map(buf, "n", input_key("submit"), submit, "send message")
-  map(buf, "i", input_key("submit"), submit, "send message")
+  map(buf, "i", input_key("submit_insert", "<M-Cr>"), submit, "send message")
   local cancel = function()
     if stream.is_busy() then stream.cancel() else M.focus_chat() end
   end

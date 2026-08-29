@@ -47,13 +47,30 @@ describe("poste-ai.chat.window", function()
 
   it("installs buffer-local keymaps", function()
     window.open()
-    local submit = vim.fn.maparg("<CR>", "i", false, true)
-    assert.is_table(submit)
-    assert.is_truthy(submit.buffer)
+    window.focus_input(false)
+    -- insert mode: Enter inserts a newline, Alt+Enter submits
+    assert.is_true(vim.tbl_isempty(vim.fn.maparg("<CR>", "i", false, true)))
+    local submit_i = vim.fn.maparg("<M-Cr>", "i", false, true)
+    assert.is_table(submit_i)
+    assert.is_truthy(submit_i.buffer)
+    -- normal mode: Enter submits directly
+    local submit_n = vim.fn.maparg("<CR>", "n", false, true)
+    assert.is_table(submit_n)
+    assert.is_truthy(submit_n.buffer)
     window.focus_chat()  -- conv keymaps resolve against the conversation buffer
     local toggle = vim.fn.maparg("R", "n", false, true)
     assert.is_table(toggle)
     assert.is_truthy(toggle.buffer)
+  end)
+
+  it("marks the input pane with a colored left gutter", function()
+    window.open()
+    local input_win = window.input_win()
+    assert.are.equal("yes", vim.api.nvim_get_option_value("signcolumn", { win = input_win }))
+    local col = vim.api.nvim_get_option_value("statuscolumn", { win = input_win })
+    assert.is_truthy(col:find("PosteAiInputBorder", 1, true))
+    -- the conversation pane keeps its clean layout
+    assert.are.equal("no", vim.api.nvim_get_option_value("signcolumn", { win = window.conversation_win() }))
   end)
 
   it("reports at_bottom correctly", function()

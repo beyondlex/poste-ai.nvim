@@ -48,7 +48,8 @@ M.defaults = {
       help = "g?",
     },
     chat_input = {
-      submit = "<CR>",
+      submit = "<CR>",          -- normal mode; in insert mode Enter inserts a newline
+      submit_insert = "<M-Cr>", -- insert mode (Option/Alt+Enter)
       cancel = "<C-c>",
       focus_chat = "<Esc>",
       new_session = "<C-n>",
@@ -63,6 +64,7 @@ local KEY_DISPLAY_NAMES = {
   ["<Tab>"] = "Tab",
   ["<S-Tab>"] = "S-Tab",
   ["<CR>"] = "Enter",
+  ["<M-Cr>"] = "Alt+Enter",
   ["<Esc>"] = "Esc",
   ["<Space>"] = "<Space>",
   ["<C-c>"] = "C-c",

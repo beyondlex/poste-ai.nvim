@@ -20,6 +20,7 @@ local LINKS = {
   PosteAiBold = "Bold",
   PosteAiItalic = "Italic",
   PosteAiMention = "Special",
+  PosteAiInputBorder = "Special",
   PosteAiWinbar = "Comment",
   PosteAiSpinner = "Special",
 }
