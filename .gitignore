@@ -1,0 +1,9 @@
+.idea/
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Test artifacts
+nvim.log

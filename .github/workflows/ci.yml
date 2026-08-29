@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        nvim_version:
+          - stable
+          - nightly
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout poste-ai.nvim
+        uses: actions/checkout@v4
+
+      - name: Install Neovim ${{ matrix.nvim_version }}
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.nvim_version }}
+
+      - name: Install plenary.nvim
+        run: |
+          git clone --depth 1 https://github.com/nvim-lua/plenary.nvim \
+            "$HOME/.local/share/nvim/lazy/plenary.nvim"
+
+      - name: Run tests
+        working-directory: poste-ai.nvim
+        run: |
+          ./tests/run.sh
