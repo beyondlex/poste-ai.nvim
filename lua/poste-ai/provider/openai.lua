@@ -6,6 +6,7 @@
 
 local sse = require("poste-ai.provider.sse")
 local config = require("poste-ai.config")
+local log = require("poste-ai.log")
 
 local M = {}
 
@@ -108,6 +109,14 @@ function M.stream(cfg, opts, handlers)
     api_key = cfg.api_key or config.api_key(cfg),
   }
   local args, body = M.build_request(request_cfg, opts)
+  log.request({
+    endpoint = M.endpoint(request_cfg.base_url),
+    model = request_cfg.model,
+    messages = opts.messages,
+    temperature = opts.temperature,
+    max_tokens = opts.max_tokens,
+    timeout_ms = opts.timeout_ms,
+  })
 
   local acc = {}       -- accumulated content deltas
   local raw = {}       -- non-SSE lines (usually an error body)
@@ -128,6 +137,15 @@ function M.stream(cfg, opts, handlers)
     if finished then return end
     finished = true
     parser:flush()
+    log.response({
+      model = request_cfg.model,
+      finish_reason = finish_reason,
+      content = table.concat(acc, ""),
+      saw_done = saw_done,
+      cancelled = result_kind == "cancelled",
+      error = result_kind == "error" and err_msg or vim.NIL,
+      raw = next(raw) and table.concat(raw, "\n") or vim.NIL,
+    })
     if result_kind == "error" then
       safe(handlers.on_error, err_msg)
       return

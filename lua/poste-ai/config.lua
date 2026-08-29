@@ -23,6 +23,9 @@ M.defaults = {
     max_tokens = nil,
     timeout_ms = 120000,
   },
+  --- Write AI request/response round-trips to
+  --- `stdpath("data")/poste-ai/logs/requests-YYYY-MM-DD.jsonl`.
+  log = true,
   chat = {
     split_position = "right", -- "left" or "right"
     split_width = 60,
