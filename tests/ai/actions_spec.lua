@@ -108,6 +108,7 @@ describe("poste-ai.chat.actions", function()
     actions.append_codeblock()
     local lines = vim.api.nvim_buf_get_lines(sql_buf, 0, -1, false)
     assert.are.equal("SELECT 1", lines[#lines])
+    window.close()  -- tear the chat down before deleting the listed buffers
     vim.api.nvim_buf_delete(sql_buf, { force = true })
     vim.api.nvim_buf_delete(scratch, { force = true })
   end)
