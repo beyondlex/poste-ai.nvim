@@ -125,6 +125,30 @@ local function apply_marks(msg, off)
   for _, bg in ipairs(specs.bg_ranges) do
     local last_len = #(clines[bg.end_ + 1] or "")
     mark(bg.start + off, 0, 0, bg.group, bg.end_ + off, last_len, "combine")
+    -- full-width block background: highlights stop at each line's last char,
+    -- so pad every row (fences included) to the window width with inline
+    -- virtual text — display-only, the buffer keeps the raw markdown
+    local ok_w, window_mod = pcall(require, "poste-ai.chat.window")
+    local win = ok_w and window_mod.conversation_win() or nil
+    local width = (win and vim.api.nvim_win_is_valid(win)) and vim.api.nvim_win_get_width(win) or nil
+    if width then
+      for r = bg.start - 1 + off, bg.end_ + 1 + off do
+        if r >= 0 and r <= max_row then
+          local line = clines[r - off + 1] or ""
+          -- fence lines are fully concealed, so their visible width is 0
+          local visible = line:match("^%s*`+") and 0 or vim.fn.strdisplaywidth(line)
+          local pad = width - visible - 1
+          if pad > 0 then
+            local ok_m, id = pcall(vim.api.nvim_buf_set_extmark, st.buf, st.ns, r, #line, {
+              virt_text = { { string.rep(" ", pad), bg.group } },
+              virt_text_pos = "inline",
+              hl_mode = "combine",
+            })
+            if ok_m and id then ids[#ids + 1] = id end
+          end
+        end
+      end
+    end
   end
   for _, m in ipairs(specs.marks) do
     mark(m.row + off, m.col, m.length, m.group, nil, nil, nil, m.conceal)
