@@ -33,7 +33,7 @@ M.defaults = {
   chat = {
     split_position = "right", -- "left" or "right"
     split_width = 60,
-    input_height = 3, -- input pane height in lines; also its maximum (clamped on resize)
+    input_height = 5, -- input pane height in lines; also its maximum (clamped on resize)
     append_focus = true, -- move the cursor into the target buffer after ga appends a block
   },
   --- Session storage directory. Defaults to `stdpath("data")/poste-ai/sessions`.

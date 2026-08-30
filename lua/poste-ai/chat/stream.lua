@@ -198,6 +198,9 @@ function M.send(text)
       st.seq = st.seq + 1
       local seq = st.seq
       window.update_winbar()
+      -- sending re-engages tail-follow: the user wants to see the reply even
+      -- if they had scrolled up to older messages
+      st.follow = true
       scroll_follow()
 
       local ok_stream, handle = pcall(adapter.stream, cfg, req, {

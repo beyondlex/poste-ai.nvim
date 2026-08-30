@@ -203,6 +203,27 @@ describe("poste-ai.chat.stream", function()
     context_api.set_active(nil)
   end)
 
+  it("re-engages tail-follow when sending after scrolling up", function()
+    -- long history so the buffer overflows the pane
+    local msgs = {}
+    for i = 1, 60 do
+      msgs[#msgs + 1] = { role = "user", text = "q" .. i }
+      msgs[#msgs + 1] = { role = "assistant", text = "a" .. i }
+    end
+    conversation.set_messages(msgs)
+    local conv_win = window.conversation_win()
+    vim.api.nvim_win_set_height(conv_win, 3)
+    vim.api.nvim_win_set_cursor(conv_win, { 1, 0 })  -- parked at the top
+    stream.set_follow(false)                          -- user scrolled up
+
+    assert.is_true(stream.send("jump to the end"))
+    vim.wait(3000, function() return not stream.is_busy() end)
+
+    local lines = vim.api.nvim_buf_line_count(window.conversation_buf())
+    assert.are.equal(lines, vim.api.nvim_win_get_cursor(conv_win)[1])
+    assert.is_true(stream.following())
+  end)
+
   it("trims the sent history to request.history_max_bytes, newest wins", function()
     local captured
     registry.register("mock", {
