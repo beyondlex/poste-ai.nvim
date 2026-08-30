@@ -125,26 +125,30 @@ describe("poste-ai.chat.window", function()
     assert.are.equal("no", vim.api.nvim_get_option_value("signcolumn", { win = window.conversation_win() }))
   end)
 
-  it("pads code block rows to the window width with inline virtual text", function()
+  it("paints code block rows with hl_eol for a full-width background", function()
     local conversation = require("poste-ai.chat.conversation")
     window.open()
     conversation.begin_assistant("m1")
     local width = vim.api.nvim_win_get_width(window.conversation_win())
-    local long = string.rep("x", width + 3)  -- wraps: 2 rows, last holds 3 cells
+    local long = string.rep("x", width + 3)  -- wraps: the bg still covers both screen rows
     conversation.update_last_assistant("```sql\nSELECT 1\n" .. long .. "\n```")
     local ns = conversation._state().ns
     local conv_buf = window.conversation_buf()
-    local padded = {}
+    local eol_rows = {}
     for _, m in ipairs(vim.api.nvim_buf_get_extmarks(conv_buf, ns, 0, -1, { details = true })) do
-      if m[4].virt_text then padded[m[2]] = m[4].virt_text[1][1] end
+      if m[4].hl_eol and m[4].hl_group == "PosteAiCodeBlock" then
+        eol_rows[m[2] + 1] = m[4].end_row
+      end
     end
-    -- rows: 0 label, 1 fence, 2 "SELECT 1", 3 wrapped long line, 4 fence —
-    -- pads fill to an exact multiple of the window width: fences are fully
-    -- concealed (visible 0) → width cells; wrapped lines fill their last row
-    assert.are.equal(string.rep(" ", width), padded[1])
-    assert.are.equal(string.rep(" ", width - 8), padded[2])
-    assert.are.equal(string.rep(" ", width - 3), padded[3])
-    assert.are.equal(string.rep(" ", width), padded[4])
+    -- rows (1-based keys): 1 label (no bg), 2 fence, 3 "SELECT 1",
+    -- 4 wrapped long line, 5 fence — one hl_eol extmark per block row
+    -- (fences included), each spanning to the start of the next row so the
+    -- highlight paints to the window edge
+    assert.is_nil(eol_rows[1])
+    assert.are.equal(2, eol_rows[2])
+    assert.are.equal(3, eol_rows[3])
+    assert.are.equal(4, eol_rows[4])
+    assert.are.equal(5, eol_rows[5])
   end)
 
   it("reports at_bottom correctly", function()

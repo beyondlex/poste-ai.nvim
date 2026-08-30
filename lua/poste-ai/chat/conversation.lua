@@ -107,7 +107,7 @@ local function apply_marks(msg, off)
   local specs = render.specs(clines)
   local ids = {}
 
-  local function mark(row, col, length, group, end_row, end_col, hl_mode, conceal)
+  local function mark(row, col, length, group, end_row, end_col, hl_mode, conceal, hl_eol)
     if row > max_row then return end
     local opts = {
       id = nil,
@@ -117,39 +117,19 @@ local function apply_marks(msg, off)
       hl_mode = hl_mode or "replace",
     }
     if conceal then opts.conceal = conceal end
+    if hl_eol then opts.hl_eol = true end
     if length == 0 and not end_row then return end
     local ok, id = pcall(vim.api.nvim_buf_set_extmark, st.buf, st.ns, row, col, opts)
     if ok and id then ids[#ids + 1] = id end
   end
 
   for _, bg in ipairs(specs.bg_ranges) do
-    local last_len = #(clines[bg.end_ + 1] or "")
-    mark(bg.start + off, 0, 0, bg.group, bg.end_ + off, last_len, "combine")
-    -- full-width block background: highlights stop at each line's last char,
-    -- so pad every row (fences included) to the window width with inline
-    -- virtual text — display-only, the buffer keeps the raw markdown
-    local ok_w, window_mod = pcall(require, "poste-ai.chat.window")
-    local win = ok_w and window_mod.conversation_win() or nil
-    local width = (win and vim.api.nvim_win_is_valid(win)) and vim.api.nvim_win_get_width(win) or nil
-    if width then
-      for r = bg.start - 1 + off, bg.end_ + 1 + off do
-        if r >= 0 and r <= max_row then
-          local line = clines[r - off + 1] or ""
-          -- fence lines are fully concealed, so their visible width is 0;
-          -- the conv window wraps at exact columns (linebreak off), so
-          -- padding to a multiple of the width fills every screen row
-          local visible = line:match("^%s*`+") and 0 or vim.fn.strdisplaywidth(line)
-          local rows = math.max(1, math.ceil(visible / width))
-          local pad = width - (visible - (rows - 1) * width)
-          if pad > 0 then
-            local ok_m, id = pcall(vim.api.nvim_buf_set_extmark, st.buf, st.ns, r, #line, {
-              virt_text = { { string.rep(" ", pad), bg.group } },
-              virt_text_pos = "inline",
-              hl_mode = "combine",
-            })
-            if ok_m and id then ids[#ids + 1] = id end
-          end
-        end
+    -- one hl_eol extmark per row (fences included): the highlight paints to
+    -- the window edge on every screen row, wrapped lines included — no width
+    -- math needed. Treesitter marks below combine on top of the background.
+    for r = bg.start - 1 + off, bg.end_ + 1 + off do
+      if r >= 0 and r <= max_row then
+        mark(r, 0, 0, bg.group, r + 1, 0, "combine", nil, true)
       end
     end
   end
