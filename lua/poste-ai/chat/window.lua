@@ -68,6 +68,42 @@ local function create_input_buf()
   return buf
 end
 
+local redirecting = false
+
+--- A picker/command tried to display a foreign buffer in one of the chat
+--- panes: reopen it in the user's editor window (preferring the window that
+--- shows origin_buf) and restore the pane — the chat UI is never replaced
+--- and nothing hard-fails (a winfixbuf E1513 from e.g. snacks.picker reads
+--- like a crash). Fires from the BufEnter guard in setup_autocmds.
+local function redirect_foreign_buffer(win, buf)
+  if redirecting or not vim.api.nvim_win_is_valid(win) then return end
+  redirecting = true
+  pcall(function()
+    local editor = nil
+    for _, w in ipairs(vim.api.nvim_list_wins()) do
+      if w ~= st.conv_win and w ~= st.input_win and vim.api.nvim_win_is_valid(w)
+        and vim.api.nvim_win_get_config(w).relative == "" then
+        if state.origin_buf and vim.api.nvim_win_get_buf(w) == state.origin_buf then
+          editor = w break  -- the user's working window wins
+        end
+        editor = editor or w
+      end
+    end
+    if editor then
+      vim.api.nvim_win_set_buf(editor, buf)
+      -- focus cannot be changed from inside the caller's autocmd (nvim
+      -- restores the invoking window when the API call returns), so defer it
+      vim.schedule(function()
+        if vim.api.nvim_win_is_valid(editor) then
+          pcall(vim.api.nvim_set_current_win, editor)
+        end
+      end)
+    end
+    vim.api.nvim_win_set_buf(win, (win == st.conv_win) and st.conv_buf or st.input_buf)
+  end)
+  redirecting = false
+end
+
 local function set_win_opts(win, kind)
   local opts = {
     wrap = true, linebreak = true, number = false, relativenumber = false,
@@ -191,11 +227,23 @@ local function setup_autocmds()
   -- while the chat is open (ga's append target, @mention path base). open()
   -- records the buffer current at chat-open time; afterwards every named,
   -- modifiable, non-chat buffer the user enters updates it — so opening a
-  -- file AFTER the chat works too.
+  -- file AFTER the chat works too. The same event redirects buffers that a
+  -- picker/command opened in a chat pane back out to the editor window.
   vim.api.nvim_create_autocmd("BufEnter", {
     group = st.augroup,
     callback = function(args)
       if not M.is_open() then return end
+      if not redirecting then
+        for _, pane in ipairs({
+          { win = st.conv_win, buf = st.conv_buf },
+          { win = st.input_win, buf = st.input_buf },
+        }) do
+          if vim.api.nvim_win_is_valid(pane.win)
+            and vim.api.nvim_win_get_buf(pane.win) ~= pane.buf then
+            return redirect_foreign_buffer(pane.win, vim.api.nvim_win_get_buf(pane.win))
+          end
+        end
+      end
       local buf = args.buf
       if not buf or not vim.api.nvim_buf_is_valid(buf)
         or buf == st.conv_buf or buf == st.input_buf then return end
@@ -259,6 +307,18 @@ function M.is_open()
 end
 
 function M.close()
+  -- if focus sits in a chat pane, move it to a regular window first so the
+  -- editor window (not some fallback) becomes current after the teardown
+  local cur = vim.api.nvim_get_current_win()
+  if (st.conv_win and cur == st.conv_win) or (st.input_win and cur == st.input_win) then
+    for _, w in ipairs(vim.api.nvim_list_wins()) do
+      if w ~= st.conv_win and w ~= st.input_win and vim.api.nvim_win_is_valid(w)
+        and vim.api.nvim_win_get_config(w).relative == "" then
+        pcall(vim.api.nvim_set_current_win, w)
+        break
+      end
+    end
+  end
   if st.conv_win and vim.api.nvim_win_is_valid(st.conv_win) then
     pcall(vim.api.nvim_win_close, st.conv_win, true)
   elseif st.input_win and vim.api.nvim_win_is_valid(st.input_win) then

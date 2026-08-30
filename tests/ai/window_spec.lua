@@ -131,6 +131,30 @@ describe("poste-ai.chat.window", function()
     assert.is_true(window.at_bottom(conv_win))  -- short buffer fits on screen
   end)
 
+  it("redirects buffers opened into chat panes out to the editor window", function()
+    window.open()
+    -- what a picker's `buffer` jump does: display a file in the current
+    -- (chat) window — the guard must move it to the editor window, restore
+    -- the pane and focus the editor
+    local picked = vim.api.nvim_create_buf(true, false)
+    vim.api.nvim_buf_set_name(picked, vim.fn.getcwd() .. "/picked.sql")
+    vim.api.nvim_set_current_win(window.input_win())
+    vim.api.nvim_win_set_buf(window.input_win(), picked)
+
+    assert.are.equal("poste://chat_input",
+      vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(window.input_win())))
+    assert.are.equal("poste://chat",
+      vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(window.conversation_win())))
+    -- focus follows on the next event-loop tick (deferred out of the API call)
+    vim.wait(100, function() return vim.api.nvim_get_current_win() ~= window.input_win() end)
+    local cur_win = vim.api.nvim_get_current_win()
+    assert.are_not.equal(window.input_win(), cur_win)
+    assert.are_not.equal(window.conversation_win(), cur_win)
+    assert.are.equal(picked, vim.api.nvim_win_get_buf(cur_win))
+    vim.api.nvim_buf_delete(picked, { force = true })
+    window.focus_chat()
+  end)
+
   it("clamps the input pane to the configured height", function()
     window.open()
     local input_win = window.input_win()
