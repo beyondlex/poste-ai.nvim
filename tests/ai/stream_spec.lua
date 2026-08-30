@@ -202,4 +202,32 @@ describe("poste-ai.chat.stream", function()
     assert.are.equal("Hello world", msgs[2].text)
     context_api.set_active(nil)
   end)
+
+  it("trims the sent history to request.history_max_bytes, newest wins", function()
+    local captured
+    registry.register("mock", {
+      stream = function(_cfg, opts, handlers)
+        captured = opts.messages
+        handlers.on_finish({ content = "ok", finish_reason = "stop" })
+        return { cancel = function() end }
+      end,
+    })
+    local long_pad = string.rep("x", 70000)
+    -- a huge first exchange that exceeds the budget on its own
+    session.current().messages = {
+      { role = "user", text = long_pad, content = long_pad },
+      { role = "assistant", text = "first reply", content = "first reply" },
+      { role = "user", text = "final question", content = "final question" },
+    }
+    assert.is_true(stream.send("and one more"))
+    vim.wait(1000, function() return not stream.is_busy() end)
+
+    -- the oversized first exchange is dropped; the newest prior user
+    -- message ("final question") is the last history entry
+    local contents = vim.tbl_map(function(m) return m.content end, captured)
+    assert.falsy(vim.tbl_contains(contents, long_pad))
+    assert.are.equal("final question", contents[#contents - 1])  -- newest kept
+    assert.are.equal("and one more", contents[#contents])        -- in-flight msg last
+    config.config.request.history_max_bytes = false  -- disable for remaining assertions
+  end)
 end)

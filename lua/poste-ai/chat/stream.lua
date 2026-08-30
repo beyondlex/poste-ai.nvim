@@ -84,6 +84,17 @@ local function history_messages(session_msgs)
       if content ~= "" then out[#out + 1] = { role = m.role, content = content } end
     end
   end
+  -- long sessions: keep the newest exchanges within the byte budget (the
+  -- final user message is never dropped) — the UI still shows everything
+  local budget = config.config.request.history_max_bytes
+  if type(budget) == "number" and budget > 0 then
+    local total = 0
+    for _, m in ipairs(out) do total = total + #m.content end
+    while total > budget and #out > 1 do
+      total = total - #out[1].content
+      table.remove(out, 1)
+    end
+  end
   return out
 end
 

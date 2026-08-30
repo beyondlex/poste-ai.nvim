@@ -22,6 +22,10 @@ M.defaults = {
     temperature = nil,
     max_tokens = nil,
     timeout_ms = 120000,
+    --- Cap on the session history sent per request, in bytes of message
+    --- content (the newest exchanges win; the system prompt is unaffected).
+    --- Set to false (or nil) to send the full history.
+    history_max_bytes = 60000,
   },
   --- Write AI request/response round-trips to
   --- `stdpath("data")/poste-ai/logs/requests-YYYY-MM-DD.jsonl`.
