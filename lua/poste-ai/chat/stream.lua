@@ -140,70 +140,112 @@ function M.send(text)
   local session = require("poste-ai.chat.session")
   local cur = session.current()
 
-  -- mentions → context blocks
+  -- mentions → context blocks; the context may also contribute an implicit
+  -- auto_context block (e.g. an auto-injected schema) ahead of them
   local refs = mention.parse(text)
-  mention.resolve_all(refs, function(blocks_md)
-    local user_content = text
-    if blocks_md ~= "" then user_content = text .. "\n\n" .. blocks_md end
+  local scope_snapshot = require("poste-ai.chat.scope").snapshot()
+  local spec_now = context_api.active()
+  local auto_ctx = spec_now and type(spec_now.auto_context) == "function" and spec_now.auto_context or nil
 
-    local user_msg = {
-      role = "user", text = text, content = user_content, ts = os.time(), refs = refs,
-      scope = require("poste-ai.chat.scope").snapshot(),
-    }
-    cur.messages[#cur.messages + 1] = user_msg
+  local function compose(auto_md)
+    mention.resolve_all(refs, function(blocks_md)
+      local blocks = {}
+      if auto_md and auto_md ~= "" then blocks[#blocks + 1] = auto_md end
+      if blocks_md and blocks_md ~= "" then blocks[#blocks + 1] = blocks_md end
+      local user_content = text
+      if #blocks > 0 then user_content = text .. "\n\n" .. table.concat(blocks, "\n\n") end
 
-    conversation.append_user(text)
-    conversation.begin_assistant(cfg.model)
-    local session_msg = { role = "assistant", text = "", model = cfg.model }
-    cur.messages[#cur.messages + 1] = session_msg
-    st.current = { assistant_text = "", session_msg = session_msg }
+      local user_msg = {
+        role = "user", text = text, content = user_content, ts = os.time(), refs = refs,
+        scope = require("poste-ai.chat.scope").snapshot(),
+      }
+      cur.messages[#cur.messages + 1] = user_msg
 
-    local messages = { { role = "system", content = context_api.system_prompt() } }
-    vim.list_extend(messages, history_messages(cur.messages))
+      conversation.append_user(text)
+      conversation.begin_assistant(cfg.model)
+      local session_msg = { role = "assistant", text = "", model = cfg.model }
+      cur.messages[#cur.messages + 1] = session_msg
+      st.current = { assistant_text = "", session_msg = session_msg }
 
-    local req = {
-      messages = messages,
-      temperature = config.config.request.temperature,
-      max_tokens = config.config.request.max_tokens,
-      timeout_ms = config.config.request.timeout_ms,
-    }
+      local messages = { { role = "system", content = context_api.system_prompt() } }
+      vim.list_extend(messages, history_messages(cur.messages))
 
-    local adapter, adapter_err = registry.get(cfg)
-    if not adapter then
-      finalize(st.seq, adapter_err or "no provider adapter")
-      return
+      local req = {
+        messages = messages,
+        temperature = config.config.request.temperature,
+        max_tokens = config.config.request.max_tokens,
+        timeout_ms = config.config.request.timeout_ms,
+      }
+
+      local adapter, adapter_err = registry.get(cfg)
+      if not adapter then
+        finalize(st.seq, adapter_err or "no provider adapter")
+        return
+      end
+
+      st.busy = true
+      st.seq = st.seq + 1
+      local seq = st.seq
+      window.update_winbar()
+      scroll_follow()
+
+      local ok_stream, handle = pcall(adapter.stream, cfg, req, {
+        on_delta = function(delta)
+          if st.seq ~= seq or not st.current then return end
+          st.current.assistant_text = st.current.assistant_text .. delta
+          schedule_flush(seq)
+        end,
+        on_finish = function(result)
+          if st.seq ~= seq or not st.current then return end
+          if result and result.content and result.content ~= "" then
+            st.current.assistant_text = result.content
+          end
+          finalize(seq, nil, result)
+        end,
+        on_error = function(err)
+          if st.seq ~= seq or not st.current then return end
+          finalize(seq, err, nil)
+        end,
+      })
+      if not ok_stream then
+        finalize(seq, "stream failed: " .. tostring(handle))
+        return
+      end
+      st.handle = handle
+    end)
+  end
+
+  if type(auto_ctx) ~= "function" then
+    compose(nil)
+    return true
+  end
+
+  -- the auto context is async (introspection etc.); 10s guard like mentions
+  local done = false
+  local timer = vim.defer_fn(function()
+    if done then return end
+    done = true
+    compose(nil)
+  end, 10000)
+  local ok_ctx, ctx_err = pcall(auto_ctx, text, scope_snapshot, function(md)
+    if done then return end
+    done = true
+    if not timer:is_closing() then
+      timer:stop()
+      timer:close()
     end
-
-    st.busy = true
-    st.seq = st.seq + 1
-    local seq = st.seq
-    window.update_winbar()
-    scroll_follow()
-
-    local ok_stream, handle = pcall(adapter.stream, cfg, req, {
-      on_delta = function(delta)
-        if st.seq ~= seq or not st.current then return end
-        st.current.assistant_text = st.current.assistant_text .. delta
-        schedule_flush(seq)
-      end,
-      on_finish = function(result)
-        if st.seq ~= seq or not st.current then return end
-        if result and result.content and result.content ~= "" then
-          st.current.assistant_text = result.content
-        end
-        finalize(seq, nil, result)
-      end,
-      on_error = function(err)
-        if st.seq ~= seq or not st.current then return end
-        finalize(seq, err, nil)
-      end,
-    })
-    if not ok_stream then
-      finalize(seq, "stream failed: " .. tostring(handle))
-      return
-    end
-    st.handle = handle
+    vim.schedule(function() compose(type(md) == "string" and md or nil) end)
   end)
+  if not ok_ctx and not done then
+    done = true
+    if not timer:is_closing() then
+      timer:stop()
+      timer:close()
+    end
+    vim.notify("poste-ai: auto context failed: " .. tostring(ctx_err),
+      vim.log.levels.WARN, { title = state.TITLE })
+    compose(nil)
+  end
   return true
 end
 

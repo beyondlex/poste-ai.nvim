@@ -22,6 +22,13 @@
 ---                                      content by a blank line; nil adds
 ---                                      nothing
 ---   }
+---   auto_context(text, scope, cb)      optional implicit context block per
+---                                      request (e.g. an auto-injected schema
+---                                      summary for the scoped database);
+---                                      cb(md, err) with markdown prepended
+---                                      to the user message ahead of mention
+---                                      blocks; async allowed; 10s timeout;
+---                                      nil/"" adds nothing
 ---   commands = {                       optional slash commands for the input
 ---     {                                 palette (typed "/" in the chat input):
 ---       name = "connections"            invoked as /connections

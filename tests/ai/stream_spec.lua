@@ -162,4 +162,44 @@ describe("poste-ai.chat.stream", function()
     context_api.set_active(nil)
     scope.clear()
   end)
+
+  it("prepends the context auto_context block ahead of mention blocks", function()
+    context_api.register("tc", {
+      auto_context = function(_text, _scope, cb) cb("AUTO SCHEMA BLOCK") end,
+      mention = {
+        match = function(token)
+          local db = token:match("^tc/(%w+)$")
+          if db then return { name = db } end
+        end,
+        resolve = function(ref, cb) cb("MENTION BLOCK " .. ref.name, nil) end,
+      },
+    })
+    context_api.set_active("tc")
+    assert.is_true(stream.send("@tc/mydb check it"))
+    -- compose runs on a scheduled tick: wait for the messages to land first
+    vim.wait(3000, function() return #session.current().messages >= 2 end)
+    vim.wait(3000, function() return not stream.is_busy() end)
+
+    local content = session.current().messages[1].content
+    local auto_at = content:find("AUTO SCHEMA BLOCK", 1, true)
+    local mention_at = content:find("MENTION BLOCK mydb", 1, true)
+    assert.truthy(auto_at)
+    assert.truthy(mention_at)
+    assert.is_true(auto_at < mention_at)
+    context_api.set_active(nil)
+  end)
+
+  it("survives a failing auto_context and still sends", function()
+    context_api.register("tc", {
+      auto_context = function() error("auto boom") end,
+    })
+    context_api.set_active("tc")
+    assert.is_true(stream.send("hello anyway"))
+    vim.wait(3000, function() return #session.current().messages >= 2 end)
+    vim.wait(3000, function() return not stream.is_busy() end)
+    local msgs = session.current().messages
+    assert.are.equal("hello anyway", msgs[1].content)
+    assert.are.equal("Hello world", msgs[2].text)
+    context_api.set_active(nil)
+  end)
 end)
