@@ -27,7 +27,7 @@ domain **contexts**. Think a much smaller avante.nvim.
 | `init.lua` | `setup(opts)`, re-exports `register_context` / `chat` / `send` / `cancel` |
 | `config.lua` | providers / request / chat layout / keymaps; `get_keymap(section, action, default)`, `false` disables |
 | `state.lua` | cross-cutting flags (active context, origin buffer) |
-| `context_api.lua` | context contract: `system_prompt(scope)`, `mention.{match,complete,resolve}`, `codeblock.{langs,confirm,execute}`, optional `commands` (slash palette) |
+| `context_api.lua` | context contract: `system_prompt(scope)`, `mention.{match,complete,resolve}`, `codeblock.{langs,confirm,execute,append_header}`, optional `commands` (slash palette) |
 | `provider/sse.lua` | pure-function SSE line parser (feed/flush, no I/O) — primary test target |
 | `provider/openai.lua` | OpenAI-compatible streaming adapter over `curl -N` + `jobstart` |
 | `provider/registry.lua` | adapter registry (require paths or adapter tables, keyed by `protocol`) |
@@ -72,7 +72,8 @@ poste.nvim (shared infra + Rust CLI)      poste-ai.nvim (this repo, zero deps)
   chat scope; `commands.lua` provides `/connections` + `/databases` slash
   commands that bind the chat scope; `actions.lua` executes ```sql blocks
   through poste-db's executor into the dataset view, preferring the chat
-  scope over the SQL buffer context). It `pcall(require, "poste-ai")` in `setup()` and retries on
+  scope over the SQL buffer context, and supplies `append_header` so `ga`
+  writes @connection/@database directives above appended blocks). It `pcall(require, "poste-ai")` in `setup()` and retries on
   `:PosteDbChat`, so both install orders work
 - **Contract coupling**: the context contract in `context_api.lua` is a
   cross-repo API. Changing its shape requires updating `lua/poste-db/ai/` in

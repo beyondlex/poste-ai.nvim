@@ -15,6 +15,11 @@
 ---     langs = { "sql", ... }           fenced languages it can execute
 ---     confirm(text) → boolean|nil      optional gate before execute
 ---     execute(text, refs, cb)          run it; cb(err, note) when done
+---     append_header(scope, text)       optional header lines inserted above a
+---                                      block appended with `ga` (e.g. file
+---                                      directives binding the buffer to the
+---                                      chat scope); followed by one blank
+---                                      line; nil adds nothing
 ---   }
 ---   commands = {                       optional slash commands for the input
 ---     {                                 palette (typed "/" in the chat input):

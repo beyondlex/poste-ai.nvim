@@ -82,6 +82,21 @@ function M.append_codeblock()
     return
   end
   local lines = vim.split(cb.text, "\n", { plain = true })
+  -- the context may bind the appended block to the chat scope (e.g. file
+  -- directives); the hook owns the directive syntax, poste-ai owns placement
+  local spec = context_api.active()
+  local code_cfg = spec and spec.codeblock
+  if type(code_cfg) == "table" and type(code_cfg.append_header) == "function" then
+    local scope = require("poste-ai.chat.scope").snapshot()
+    local ok_h, header = pcall(code_cfg.append_header, scope, cb.text)
+    if ok_h and type(header) == "table" and #header > 0 then
+      local prefixed = {}
+      for _, l in ipairs(header) do prefixed[#prefixed + 1] = l end
+      prefixed[#prefixed + 1] = ""
+      for _, l in ipairs(lines) do prefixed[#prefixed + 1] = l end
+      lines = prefixed
+    end
+  end
   vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
   local name = vim.api.nvim_buf_get_name(buf)
   notify(("appended %d lines to %s"):format(#lines, name ~= "" and vim.fn.fnamemodify(name, ":t") or "buffer"))

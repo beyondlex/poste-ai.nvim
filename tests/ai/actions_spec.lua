@@ -62,6 +62,35 @@ describe("poste-ai.chat.actions", function()
     assert.are.equal("SELECT 1", origin_lines[#origin_lines])
   end)
 
+  it("prepends the context append_header and a blank line above the block", function()
+    local got_scope, got_text
+    context_api.register("ac", {
+      codeblock = {
+        langs = { "sql" },
+        append_header = function(scope, text)
+          got_scope, got_text = scope, text
+          return { "-- @fake-conn " .. scope.connection }
+        end,
+      },
+    })
+    context_api.set_active("ac")
+    local scope = require("poste-ai.chat.scope")
+    scope.set("connection", "demo-conn")
+    vim.api.nvim_buf_set_lines(origin_buf, 0, -1, false, { "-- existing", "SELECT 0;" })
+
+    focus_code_row()
+    actions.append_codeblock()
+    assert.are.same({ connection = "demo-conn" }, got_scope)
+    assert.are.equal("SELECT 1", got_text)
+
+    local origin_lines = vim.api.nvim_buf_get_lines(origin_buf, 0, -1, false)
+    assert.are.same({
+      "-- existing", "SELECT 0;",
+      "-- @fake-conn demo-conn", "", "SELECT 1",
+    }, origin_lines)
+    scope.clear()
+  end)
+
   it("jumps between code blocks", function()
     conversation.begin_assistant("m1")
     conversation.update_last_assistant("```lua\nprint(1)\n```")
