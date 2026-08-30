@@ -45,6 +45,29 @@ describe("poste-ai.chat.window", function()
     assert.are.equal(scratch, state.origin_buf)
   end)
 
+  it("tracks the buffer the user edits while the chat is open", function()
+    local first = vim.api.nvim_create_buf(true, false)
+    vim.api.nvim_buf_set_name(first, vim.fn.getcwd() .. "/tracked_first.sql")
+    vim.api.nvim_set_current_buf(first)
+    window.open()
+    assert.are.equal(first, state.origin_buf)
+
+    -- recent-files style: open another file while the chat is up
+    local second = vim.api.nvim_create_buf(true, false)
+    vim.api.nvim_buf_set_name(second, vim.fn.getcwd() .. "/tracked_second.sql")
+    for _, w in ipairs(vim.api.nvim_list_wins()) do
+      if vim.api.nvim_win_get_buf(w) == first then vim.api.nvim_set_current_win(w) break end
+    end
+    vim.api.nvim_set_current_buf(second)
+    assert.are.equal(second, state.origin_buf)
+
+    -- entering chat panes does not clobber the origin
+    window.focus_input(false)
+    assert.are.equal(second, state.origin_buf)
+    vim.api.nvim_buf_delete(first, { force = true })
+    vim.api.nvim_buf_delete(second, { force = true })
+  end)
+
   it("installs buffer-local keymaps", function()
     window.open()
     window.focus_input(false)

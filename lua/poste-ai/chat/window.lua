@@ -187,6 +187,25 @@ local function setup_autocmds()
       require("poste-ai.chat.conversation").redraw_marks()
     end,
   })
+  -- keep origin_buf pointed at the file the user is actually working in
+  -- while the chat is open (ga's append target, @mention path base). open()
+  -- records the buffer current at chat-open time; afterwards every named,
+  -- modifiable, non-chat buffer the user enters updates it — so opening a
+  -- file AFTER the chat works too.
+  vim.api.nvim_create_autocmd("BufEnter", {
+    group = st.augroup,
+    callback = function(args)
+      if not M.is_open() then return end
+      local buf = args.buf
+      if not buf or not vim.api.nvim_buf_is_valid(buf)
+        or buf == st.conv_buf or buf == st.input_buf then return end
+      local name = vim.api.nvim_buf_get_name(buf)
+      if name == "" or name:find("^poste://") then return end
+      if vim.api.nvim_get_option_value("buftype", { buf = buf }) ~= "" then return end
+      if not vim.api.nvim_get_option_value("modifiable", { buf = buf }) then return end
+      state.origin_buf = buf
+    end,
+  })
   -- slash command palette: re-target the popup as the input text changes
   if st.input_buf and vim.api.nvim_buf_is_valid(st.input_buf) then
     vim.api.nvim_create_autocmd("TextChangedI", {

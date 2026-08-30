@@ -87,6 +87,31 @@ describe("poste-ai.chat.actions", function()
     assert.are.equal(origin_win, vim.api.nvim_get_current_win())
   end)
 
+  it("appends to a file opened after the chat was opened", function()
+    window.close()
+    state.origin_buf = nil
+    local scratch = vim.api.nvim_create_buf(true, false)  -- unnamed, e.g. a dashboard
+    vim.api.nvim_set_current_buf(scratch)
+    window.open()
+    assert.is_nil(state.origin_buf)  -- nothing recordable at chat-open time
+
+    -- recent-files opens a named sql file in the editor window afterwards
+    local sql_buf = vim.api.nvim_create_buf(true, false)
+    vim.api.nvim_buf_set_name(sql_buf, vim.fn.getcwd() .. "/opened_later.sql")
+    for _, w in ipairs(vim.api.nvim_list_wins()) do
+      if vim.api.nvim_win_get_buf(w) == scratch then vim.api.nvim_set_current_win(w) break end
+    end
+    vim.api.nvim_set_current_buf(sql_buf)
+    assert.are.equal(sql_buf, state.origin_buf)
+
+    focus_code_row()
+    actions.append_codeblock()
+    local lines = vim.api.nvim_buf_get_lines(sql_buf, 0, -1, false)
+    assert.are.equal("SELECT 1", lines[#lines])
+    vim.api.nvim_buf_delete(sql_buf, { force = true })
+    vim.api.nvim_buf_delete(scratch, { force = true })
+  end)
+
   it("keeps chat focus when chat.append_focus is false", function()
     local config = require("poste-ai.config")
     config.config.chat.append_focus = false
