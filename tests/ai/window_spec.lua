@@ -129,21 +129,22 @@ describe("poste-ai.chat.window", function()
     local conversation = require("poste-ai.chat.conversation")
     window.open()
     conversation.begin_assistant("m1")
-    conversation.update_last_assistant("```sql\nSELECT 1\n\nSELECT 2\n```")
+    local width = vim.api.nvim_win_get_width(window.conversation_win())
+    local long = string.rep("x", width + 3)  -- wraps: 2 rows, last holds 3 cells
+    conversation.update_last_assistant("```sql\nSELECT 1\n" .. long .. "\n```")
     local ns = conversation._state().ns
     local conv_buf = window.conversation_buf()
-    local width = vim.api.nvim_win_get_width(window.conversation_win())
     local padded = {}
     for _, m in ipairs(vim.api.nvim_buf_get_extmarks(conv_buf, ns, 0, -1, { details = true })) do
       if m[4].virt_text then padded[m[2]] = m[4].virt_text[1][1] end
     end
-    -- rows: 0 label, 1 fence, 2 "SELECT 1", 3 empty, 4 "SELECT 2", 5 fence —
-    -- fences are fully concealed (visible width 0), body rows keep 1 cell margin
-    assert.are.equal(string.rep(" ", width - 1), padded[1])
-    assert.are.equal(string.rep(" ", width - 1 - 8), padded[2])
-    assert.are.equal(string.rep(" ", width - 1), padded[3])
-    assert.are.equal(string.rep(" ", width - 1 - 8), padded[4])
-    assert.are.equal(string.rep(" ", width - 1), padded[5])
+    -- rows: 0 label, 1 fence, 2 "SELECT 1", 3 wrapped long line, 4 fence —
+    -- pads fill to an exact multiple of the window width: fences are fully
+    -- concealed (visible 0) → width cells; wrapped lines fill their last row
+    assert.are.equal(string.rep(" ", width), padded[1])
+    assert.are.equal(string.rep(" ", width - 8), padded[2])
+    assert.are.equal(string.rep(" ", width - 3), padded[3])
+    assert.are.equal(string.rep(" ", width), padded[4])
   end)
 
   it("reports at_bottom correctly", function()

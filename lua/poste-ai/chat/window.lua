@@ -106,7 +106,7 @@ end
 
 local function set_win_opts(win, kind)
   local opts = {
-    wrap = true, linebreak = true, number = false, relativenumber = false,
+    wrap = true, number = false, relativenumber = false,
     signcolumn = "no", foldcolumn = "0", spell = false, conceallevel = 0,
     winfixwidth = true, list = false,
   }
@@ -114,6 +114,9 @@ local function set_win_opts(win, kind)
     pcall(vim.api.nvim_set_option_value, k, v, { win = win })
   end
   if kind == "conv" then
+    -- exact column wrapping: code-block background padding relies on wraps
+    -- happening at fixed columns (linebreak would wrap at word boundaries)
+    pcall(vim.api.nvim_set_option_value, "linebreak", false, { win = win })
     -- rendered view conceals markdown markers (display-only; yank keeps raw text)
     pcall(vim.api.nvim_set_option_value, "conceallevel", 2, { win = win })
     pcall(vim.api.nvim_set_option_value, "cursorline", true, { win = win })
@@ -125,6 +128,8 @@ local function set_win_opts(win, kind)
       .. "%=%#PosteAiTimestampBg# %{v:lua.require('poste-ai.chat.conversation').statusline_counter()} %*",
       { win = win })
   elseif kind == "input" then
+    -- word wrapping reads better in the multiline input
+    pcall(vim.api.nvim_set_option_value, "linebreak", true, { win = win })
     -- colored left gutter so the input pane is visually distinct
     pcall(vim.api.nvim_set_option_value, "signcolumn", "yes", { win = win })
     pcall(vim.api.nvim_set_option_value, "statuscolumn", "%#PosteAiInputBorder#▍ ", { win = win })
