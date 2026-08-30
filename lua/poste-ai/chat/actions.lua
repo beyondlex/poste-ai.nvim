@@ -2,6 +2,7 @@
 --- context), yank, append-to-buffer, and jump between blocks.
 
 local state = require("poste-ai.state")
+local config = require("poste-ai.config")
 local context_api = require("poste-ai.context_api")
 local conversation = require("poste-ai.chat.conversation")
 local window = require("poste-ai.chat.window")
@@ -91,13 +92,30 @@ function M.append_codeblock()
     local ok_h, header = pcall(code_cfg.append_header, scope, cb.text)
     if ok_h and type(header) == "table" and #header > 0 then
       local prefixed = {}
+      -- blank line above the header group, separating it from existing content
+      local tail = vim.api.nvim_buf_get_lines(buf, -2, -1, false)[1] or ""
+      if tail ~= "" then prefixed[#prefixed + 1] = "" end
       for _, l in ipairs(header) do prefixed[#prefixed + 1] = l end
-      prefixed[#prefixed + 1] = ""
       for _, l in ipairs(lines) do prefixed[#prefixed + 1] = l end
       lines = prefixed
     end
   end
   vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
+  -- reveal the insertion in the origin window; with chat.append_focus the
+  -- cursor jumps into the file (default), otherwise it only scrolls there
+  local first_idx = 1
+  while first_idx < #lines and lines[first_idx] == "" do first_idx = first_idx + 1 end
+  local first_row = vim.api.nvim_buf_line_count(buf) - #lines + first_idx
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_get_buf(win) == buf then
+      pcall(vim.api.nvim_win_set_cursor, win, { first_row, 0 })
+      pcall(vim.api.nvim_win_call, win, function() vim.cmd("normal! zz") end)
+      if config.config.chat.append_focus then
+        pcall(vim.api.nvim_set_current_win, win)
+      end
+      break
+    end
+  end
   local name = vim.api.nvim_buf_get_name(buf)
   notify(("appended %d lines to %s"):format(#lines, name ~= "" and vim.fn.fnamemodify(name, ":t") or "buffer"))
 end

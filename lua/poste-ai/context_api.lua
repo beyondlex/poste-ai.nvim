@@ -18,8 +18,9 @@
 ---     append_header(scope, text)       optional header lines inserted above a
 ---                                      block appended with `ga` (e.g. file
 ---                                      directives binding the buffer to the
----                                      chat scope); followed by one blank
----                                      line; nil adds nothing
+---                                      chat scope), separated from existing
+---                                      content by a blank line; nil adds
+---                                      nothing
 ---   }
 ---   commands = {                       optional slash commands for the input
 ---     {                                 palette (typed "/" in the chat input):

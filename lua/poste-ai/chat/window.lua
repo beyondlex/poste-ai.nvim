@@ -178,10 +178,12 @@ local function setup_autocmds()
       end
     end,
   })
-  -- re-align right-side label timestamps when the chat pane is resized
+  -- on resize: clamp the input pane height, re-align right-side label
+  -- timestamps (dragging other windows can pull the input tall)
   vim.api.nvim_create_autocmd("WinResized", {
     group = st.augroup,
     callback = function()
+      M.enforce_input_height()
       require("poste-ai.chat.conversation").redraw_marks()
     end,
   })
@@ -314,6 +316,17 @@ function M.update_context_line()
   local scope = require("poste-ai.chat.scope")
   local parts = { "%#PosteAiInputBorder# " .. scope.render() .. " %*" }
   pcall(vim.api.nvim_set_option_value, "winbar", table.concat(parts), { win = win })
+end
+
+--- Clamp the input pane to `chat.input_height` — dragging other windows or
+--- layout redistribution can pull it much taller than intended.
+function M.enforce_input_height()
+  local win = M.input_win()
+  local cap = config.config.chat.input_height
+  if win and vim.api.nvim_win_is_valid(win)
+    and vim.api.nvim_win_get_height(win) > cap then
+    pcall(vim.api.nvim_win_set_height, win, cap)
+  end
 end
 
 --- True when the last buffer line is visible in the window (tail-follow).

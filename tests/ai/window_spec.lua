@@ -107,4 +107,20 @@ describe("poste-ai.chat.window", function()
     local conv_win = window.conversation_win()
     assert.is_true(window.at_bottom(conv_win))  -- short buffer fits on screen
   end)
+
+  it("clamps the input pane to the configured height", function()
+    window.open()
+    local input_win = window.input_win()
+    local cap = require("poste-ai.config").config.chat.input_height
+    vim.api.nvim_win_set_height(input_win, cap + 5)
+    window.enforce_input_height()
+    assert.is_true(vim.api.nvim_win_get_height(input_win) <= cap)
+    -- shrinking below the cap is left alone (nvim's minimum with a winbar is 2)
+    vim.api.nvim_win_set_height(input_win, 1)
+    window.enforce_input_height()
+    assert.is_true(vim.api.nvim_win_get_height(input_win) < cap)
+    window.close()
+    window.open()  -- reopen restores the configured height
+    assert.are.equal(cap, vim.api.nvim_win_get_height(window.input_win()))
+  end)
 end)

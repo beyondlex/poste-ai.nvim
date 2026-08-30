@@ -62,6 +62,44 @@ describe("poste-ai.chat.actions", function()
     assert.are.equal("SELECT 1", origin_lines[#origin_lines])
   end)
 
+  it("scrolls the origin window to the appended block", function()
+    vim.api.nvim_buf_set_lines(origin_buf, 0, -1, false, { "-- existing", "SELECT 0;" })
+    local origin_win
+    for _, w in ipairs(vim.api.nvim_list_wins()) do
+      if vim.api.nvim_win_get_buf(w) == origin_buf then origin_win = w break end
+    end
+    assert.is_not_nil(origin_win)
+    pcall(vim.api.nvim_win_set_cursor, origin_win, { 1, 0 })
+
+    focus_code_row()
+    actions.append_codeblock()
+    -- cursor of the origin window sits on the first appended row
+    assert.are.equal(3, vim.api.nvim_win_get_cursor(origin_win)[1])
+  end)
+
+  it("jumps the cursor into the target file by default (chat.append_focus)", function()
+    focus_code_row()
+    actions.append_codeblock()
+    local origin_win
+    for _, w in ipairs(vim.api.nvim_list_wins()) do
+      if vim.api.nvim_win_get_buf(w) == origin_buf then origin_win = w break end
+    end
+    assert.are.equal(origin_win, vim.api.nvim_get_current_win())
+  end)
+
+  it("keeps chat focus when chat.append_focus is false", function()
+    local config = require("poste-ai.config")
+    config.config.chat.append_focus = false
+    focus_code_row()
+    actions.append_codeblock()
+    local origin_win
+    for _, w in ipairs(vim.api.nvim_list_wins()) do
+      if vim.api.nvim_win_get_buf(w) == origin_buf then origin_win = w break end
+    end
+    assert.are_not.equal(origin_win, vim.api.nvim_get_current_win())
+    config.config.chat.append_focus = true
+  end)
+
   it("prepends the context append_header and a blank line above the block", function()
     local got_scope, got_text
     context_api.register("ac", {
@@ -86,7 +124,7 @@ describe("poste-ai.chat.actions", function()
     local origin_lines = vim.api.nvim_buf_get_lines(origin_buf, 0, -1, false)
     assert.are.same({
       "-- existing", "SELECT 0;",
-      "-- @fake-conn demo-conn", "", "SELECT 1",
+      "", "-- @fake-conn demo-conn", "SELECT 1",
     }, origin_lines)
     scope.clear()
   end)
