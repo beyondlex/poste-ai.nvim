@@ -30,6 +30,7 @@ function M.open_chat(context_id)
     conversation.append_note("PosteAI ready — type @ for mentions, / for commands, Enter to send.")
   end
   window.update_winbar()
+  window.scroll_conversation_to_end()
   window.focus_input(true)
 end
 
@@ -66,7 +67,9 @@ function M.open_session(id)
   if not s then notify("failed to load session", vim.log.levels.ERROR) return end
   scope.from_list(s.scope)
   conversation.set_messages(s.messages or {})
-  require("poste-ai.chat.window").update_winbar()
+  local window = require("poste-ai.chat.window")
+  window.update_winbar()
+  window.scroll_conversation_to_end()
   notify("switched to " .. tostring(s.name))
 end
 

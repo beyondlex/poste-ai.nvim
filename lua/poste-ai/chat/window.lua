@@ -408,6 +408,15 @@ function M.enforce_input_height()
   end
 end
 
+--- Scroll the conversation pane to the newest block (used on open and on
+--- session switch, so the latest exchange is visible immediately).
+function M.scroll_conversation_to_end()
+  local win = M.conversation_win()
+  local buf = M.conversation_buf()
+  if not win or not buf or not vim.api.nvim_buf_is_valid(buf) then return end
+  pcall(vim.api.nvim_win_set_cursor, win, { vim.api.nvim_buf_line_count(buf), 0 })
+end
+
 --- True when the last buffer line is visible in the window (tail-follow).
 --- @param win number
 function M.at_bottom(win)

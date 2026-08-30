@@ -131,6 +131,24 @@ describe("poste-ai.chat.window", function()
     assert.is_true(window.at_bottom(conv_win))  -- short buffer fits on screen
   end)
 
+  it("scrolls the conversation pane to the newest block", function()
+    window.open()
+    local conversation = require("poste-ai.chat.conversation")
+    local msgs = {}
+    for i = 1, 50 do
+      msgs[#msgs + 1] = { role = "user", text = "q" .. i }
+      msgs[#msgs + 1] = { role = "assistant", text = "a" .. i }
+    end
+    conversation.set_messages(msgs)
+    vim.api.nvim_win_set_height(window.conversation_win(), 3)
+    vim.api.nvim_win_set_cursor(window.conversation_win(), { 1, 0 })  -- parked at the top
+
+    window.scroll_conversation_to_end()
+    local lines = vim.api.nvim_buf_get_lines(window.conversation_buf(), 0, -1, false)
+    assert.are.equal(#lines, vim.api.nvim_win_get_cursor(window.conversation_win())[1])
+    assert.truthy(lines[#lines]:find("a50"))
+  end)
+
   it("redirects buffers opened into chat panes out to the editor window", function()
     window.open()
     -- what a picker's `buffer` jump does: display a file in the current
