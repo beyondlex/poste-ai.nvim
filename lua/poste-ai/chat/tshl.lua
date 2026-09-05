@@ -24,7 +24,12 @@ local LANG_ALIASES = {
   txt = "",
 }
 
-local cache = {}  -- lang .. "\0" .. text → specs
+local cache = {}    -- lang .. "\0" .. text → specs
+local cache_n = 0
+-- Streaming re-renders the growing block once per flush tick, each with a
+-- slightly different full text; without a cap the cache would keep one copy
+-- of every intermediate block until nvim exits.
+local CACHE_MAX = 256
 
 --- Normalize an infostring language to a treesitter language name.
 --- @return string|nil nil when the language should not be highlighted
@@ -47,6 +52,11 @@ function M.specs(text, lang)
 
   local key = lang .. "\0" .. text
   if cache[key] then return cache[key] end
+  if cache_n >= CACHE_MAX then
+    cache = {}
+    cache_n = 0
+  end
+  cache_n = cache_n + 1
   cache[key] = {}  -- pessimistic: failures stay cached too
 
   local ok, parser = pcall(vim.treesitter.get_string_parser, text, lang)
@@ -84,7 +94,7 @@ M._test = {
   specs = M.specs,
   resolve_lang = resolve_lang,
   _cache = function() return cache end,
-  _reset = function() cache = {} end,
+  _reset = function() cache = {} cache_n = 0 end,
 }
 
 return M

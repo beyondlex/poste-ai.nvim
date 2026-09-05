@@ -49,4 +49,13 @@ describe("poste-ai.chat.tshl", function()
     local c = tshl.specs("local y = 2", "lua")
     assert.are_not.equal(a, c)
   end)
+
+  it("caps the cache so streaming blocks cannot grow it unboundedly", function()
+    -- streaming writes one intermediate block text per flush tick; without a
+    -- cap each would keep a full copy of the block until nvim exits
+    for i = 1, 400 do tshl.specs("local x = " .. i, "lua") end
+    local n = 0
+    for _ in pairs(tshl._test._cache()) do n = n + 1 end
+    assert.is_true(n <= 256)
+  end)
 end)
