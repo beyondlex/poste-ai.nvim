@@ -70,6 +70,13 @@ end
 
 local redirecting = false
 
+--- The slash-command palette floats above the input window; when the panes go
+--- away it must be closed explicitly or its temporary input keymaps would
+--- survive the teardown and hijack the reused input buffer after a reopen.
+local function close_popup()
+  pcall(function() require("poste-ai.chat.popup").close() end)
+end
+
 --- A picker/command tried to display a foreign buffer in one of the chat
 --- panes: reopen it in the user's editor window (preferring the window that
 --- shows origin_buf) and restore the pane — the chat UI is never replaced
@@ -194,6 +201,7 @@ local function setup_autocmds()
         once = true,
         callback = function()
           st[win_key] = nil
+          close_popup()
           -- when one pane dies, tear the other down with it
           local other = win_key == "conv_win" and "input_win" or "conv_win"
           if st[other] and vim.api.nvim_win_is_valid(st[other]) then
@@ -307,6 +315,7 @@ function M.is_open()
 end
 
 function M.close()
+  close_popup()
   -- if focus sits in a chat pane, move it to a regular window first so the
   -- editor window (not some fallback) becomes current after the teardown
   local cur = vim.api.nvim_get_current_win()

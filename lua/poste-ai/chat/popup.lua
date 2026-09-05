@@ -69,7 +69,17 @@ local function restore_maps()
   st.saved_maps = nil
 end
 
+local function stale()
+  -- The popup window can die without close() running (e.g. the chat is torn
+  -- down while the palette is up). The temporary keymaps on the input buffer
+  -- survive that, so the first keypress on a dead popup must restore the maps
+  -- instead of driving stale state.
+  if not M.is_open() then M.close() return true end
+  return false
+end
+
 local function choose()
+  if stale() then return end
   local item = M.selected()
   local cb = st.on_select
   M.close()
@@ -89,13 +99,14 @@ local function temp_maps(buf)
   local function map(lhs, fn)
     vim.keymap.set("i", lhs, fn, { noremap = true, silent = true, buffer = buf })
   end
-  map("<Up>", function() M.move(-1) end)
-  map("<Down>", function() M.move(1) end)
-  map("<C-n>", function() M.move(1) end)
-  map("<C-p>", function() M.move(-1) end)
+  map("<Up>", function() if stale() then return end M.move(-1) end)
+  map("<Down>", function() if stale() then return end M.move(1) end)
+  map("<C-n>", function() if stale() then return end M.move(1) end)
+  map("<C-p>", function() if stale() then return end M.move(-1) end)
   map("<CR>", choose)
   map("<Tab>", choose)
   map("<Esc>", function()
+    if stale() then return end
     local cb = st.on_cancel
     M.close()
     if cb then vim.schedule(cb) end

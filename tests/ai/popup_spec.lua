@@ -83,4 +83,31 @@ describe("poste-ai.chat.popup", function()
     assert.are.equal("/session", got and got.label)
     assert.is_false(popup.is_open())
   end)
+
+  it("chat teardown closes the popup and restores the input keymaps", function()
+    window.open()
+    popup.open(items, {})
+    assert.is_true(popup.is_open())
+
+    -- closing the chat while the palette is up: the popup must not leave its
+    -- temporary keymaps hijacking the (reused) input buffer
+    window.close()
+    vim.wait(100, function() return not popup.is_open() end)
+    assert.is_false(popup.is_open())
+    assert.is_true(vim.tbl_isempty(vim.fn.maparg("<C-p>", "i", false, true)))
+    assert.is_true(vim.tbl_isempty(vim.fn.maparg("<CR>", "i", false, true)))
+
+    -- a popup window that dies without close() (e.g. anchor window closed
+    -- under us) must not fire stale callbacks on the next keypress: the
+    -- handler guard drops it and restores the maps instead
+    window.open()
+    local ran = false
+    popup.open(items, { on_select = function() ran = true end })
+    assert.is_true(popup.is_open())
+    vim.api.nvim_win_close(popup._test.st.win, true)
+    assert.is_false(popup.is_open())
+    popup._test.choose()
+    assert.is_false(ran)
+    assert.is_true(vim.tbl_isempty(vim.fn.maparg("<C-p>", "i", false, true)))
+  end)
 end)
