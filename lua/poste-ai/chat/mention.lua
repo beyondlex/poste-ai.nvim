@@ -18,6 +18,12 @@ end
 --- Parse a token into a file ref, or nil.
 local function file_ref(token)
   local path, l1, l2 = token:match("^(.+)%((%d+)%-(%d+)%)$")
+  if not path then
+    -- single-line range form "@path(10)" — exactly what range_mention emits
+    -- for a one-line visual selection; l2 == l1
+    path, l1 = token:match("^(.+)%((%d+)%)$")
+    l2 = l1
+  end
   if not path then path = token end
   if path == "" then return nil end
   local resolved = M._resolve_path(path)

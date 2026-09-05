@@ -29,6 +29,14 @@ describe("poste-ai.chat.mention", function()
     assert.is_nil(refs[2].l1)
   end)
 
+  it("parses single-line range mentions (what range_mention emits)", function()
+    local refs = mention.parse("check @" .. tmp_file .. "(2)")
+    assert.are.equal(1, #refs)
+    assert.are.equal("file", refs[1].type)
+    assert.are.equal(2, refs[1].l1)
+    assert.are.equal(2, refs[1].l2)
+  end)
+
   it("resolves file mention paths relative to the cwd", function()
     local refs = mention.parse("@" .. tmp_file)
     assert.are.equal(1, #refs)
@@ -89,6 +97,15 @@ describe("poste-ai.chat.mention", function()
       local block = read_block(out, "(lines 2-3)")
       assert.truthy(block:find("SELECT 3;"))
       assert.falsy(block:find("SELECT 1;"))
+    end)
+
+    it("renders single-line ranged file refs", function()
+      local out
+      mention.resolve_all({ { type = "file", path = tmp_file, abspath = vim.fn.getcwd() .. "/" .. tmp_file, token = tmp_file, l1 = 2, l2 = 2 } },
+        function(md) out = md end)
+      assert.truthy(out:find("(lines 2-2)", 1, true))
+      assert.truthy(out:find("SELECT 2;"))
+      assert.falsy(out:find("SELECT 1;"))
     end)
 
     it("delegates context refs and aggregates in order", function()
