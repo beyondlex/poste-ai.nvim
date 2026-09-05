@@ -71,6 +71,30 @@ describe("poste-ai.chat.stream", function()
     vim.wait(3000, function() return not stream.is_busy() end)
   end)
 
+  it("rejects a send while an async compose is still pending", function()
+    -- auto_context holds the compose open past the busy check: a second send
+    -- during the window must be rejected or two composes would race
+    local release
+    context_api.register("tc", {
+      auto_context = function(_text, _scope, cb) release = cb end,
+    })
+    context_api.set_active("tc")
+
+    assert.is_true(stream.send("first"))
+    assert.is_false(stream.is_busy())       -- composing, not streaming yet
+    assert.is_false(stream.send("second"))  -- gated by the pending compose
+
+    release(nil)
+    -- compose runs on a scheduled tick: wait for the messages to land first
+    vim.wait(3000, function() return #session.current().messages >= 2 end)
+    vim.wait(3000, function() return not stream.is_busy() end)
+    local msgs = session.current().messages
+    assert.are.equal(2, #msgs)              -- exactly one exchange landed
+    assert.are.equal("first", msgs[1].text)
+    assert.are.equal("Hello world", msgs[2].text)
+    context_api.set_active(nil)
+  end)
+
   it("cancels an in-flight request and records a note", function()
     require("tests.ai.fixtures.mock_adapter").reset({ "chunk one", "chunk two", "chunk three" }, 60)
     assert.is_true(stream.send("cancel me"))
@@ -114,6 +138,33 @@ describe("poste-ai.chat.stream", function()
     local msgs = session.current().messages
     assert.are.equal(2, #msgs)
     assert.is_true(msgs[#msgs].errored)
+  end)
+
+  it("leaves no stale handle when the adapter errors synchronously", function()
+    registry.register("mock", {
+      stream = function(_cfg, _opts, handlers)
+        handlers.on_error("sync boom")
+        return { cancel = function() end }
+      end,
+    })
+    assert.is_true(stream.send("go"))
+    vim.wait(1000, function() return not stream.is_busy() end)
+    assert.is_false(stream.is_busy())
+    assert.is_nil(stream._test.state.handle)  -- finalize's cleanup stands
+    local ls = table.concat(conv_lines(), "\n")
+    assert.truthy(ls:find("sync boom"))
+  end)
+
+  it("finalize survives a missing session_msg without wedging busy", function()
+    -- defensive path: st.current without a session_msg must not crash
+    -- finalize — an error there would leave busy stuck true forever
+    local st = stream._test.state
+    st.seq = st.seq + 1
+    st.busy = true
+    st.current = { assistant_text = "partial" }
+    stream._test.finalize(st.seq, "boom", nil)
+    assert.is_false(stream.is_busy())
+    assert.is_nil(st.current)
   end)
 
   it("sends the composed history including the system prompt", function()

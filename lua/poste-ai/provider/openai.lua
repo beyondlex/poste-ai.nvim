@@ -140,6 +140,15 @@ function M.stream(cfg, opts, handlers)
   local handle = { cancelled = false, job_id = nil }
   local parser  -- forward declaration: finalize flushes it on exit
 
+  -- defined up front so even the jobstart-failure early return hands back a
+  -- handle whose cancel() is safe to call (job_id is nil → no-op)
+  function handle.cancel()
+    if handle.job_id then
+      handle.cancelled = true
+      pcall(vim.fn.jobstop, handle.job_id)
+    end
+  end
+
   local function safe(fn, ...)
     if not fn then return end
     local ok, err = pcall(fn, ...)
@@ -249,13 +258,6 @@ function M.stream(cfg, opts, handlers)
   -- NB: chanclose without a stream closes ALL pipes including stdout, which
   -- would EPIPE curl mid-stream (exit 23). Close only our stdin.
   pcall(vim.fn.chanclose, job_id, "stdin")
-
-  function handle.cancel()
-    if handle.job_id then
-      handle.cancelled = true
-      pcall(vim.fn.jobstop, handle.job_id)
-    end
-  end
 
   return handle
 end

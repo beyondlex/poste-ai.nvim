@@ -15,6 +15,7 @@ local M = {}
 
 local st = {
   busy = false,
+  pending = false,    -- a send is composing (mentions/auto_context) but not streaming yet
   handle = nil,       -- provider stream handle
   seq = 0,            -- epoch guard: callbacks from older requests are dropped
   follow = true,      -- tail-follow the conversation while streaming
@@ -111,11 +112,11 @@ local function finalize(seq, err, result)
   if st.current.session_msg then
     st.current.session_msg.text = st.current.assistant_text
     st.current.session_msg.ts = os.time()
+    if err then st.current.session_msg.errored = true end
   end
 
   if err then
     conversation.append_error(err)
-    st.current.session_msg.errored = true
   elseif result.cancelled then
     conversation.append_note("· cancelled")
   end
@@ -136,7 +137,7 @@ end
 function M.send(text)
   text = (text or ""):gsub("^%s+", ""):gsub("%s+$", "")
   if text == "" then return false end
-  if st.busy then
+  if st.busy or st.pending then
     vim.notify("poste-ai: still streaming — press Esc or :PosteAICancel first", vim.log.levels.WARN, { title = state.TITLE })
     return false
   end
@@ -158,8 +159,18 @@ function M.send(text)
   local spec_now = context_api.active()
   local auto_ctx = spec_now and type(spec_now.auto_context) == "function" and spec_now.auto_context or nil
 
+  -- composing yields (async mention resolvers / auto_context), so a second
+  -- send could slip past the busy gate: two composes would race on
+  -- st.current/st.seq, strand the first assistant placeholder and leak its
+  -- in-flight job. Hold `pending` until the stream (or finalize) takes over.
+  st.pending = true
+  local epoch = st.seq
+
   local function compose(auto_md)
     mention.resolve_all(refs, function(blocks_md)
+      -- a force_reset during composition bumps the epoch: drop this compose
+      if st.seq ~= epoch then st.pending = false return end
+      st.pending = false  -- busy takes over below (finalize covers the rest)
       local blocks = {}
       if auto_md and auto_md ~= "" then blocks[#blocks + 1] = auto_md end
       if blocks_md and blocks_md ~= "" then blocks[#blocks + 1] = blocks_md end
@@ -225,7 +236,11 @@ function M.send(text)
         finalize(seq, "stream failed: " .. tostring(handle))
         return
       end
-      st.handle = handle
+      -- a synchronous adapter error already finalized (busy=false, handle
+      -- cleared): don't re-attach the dead handle on top of clean state
+      if st.busy and st.seq == seq then
+        st.handle = handle
+      end
     end)
   end
 
@@ -297,6 +312,7 @@ function M.force_reset()
   if st.handle then pcall(function() st.handle.cancel() end) end
   cancel_flush_timer()
   st.busy = false
+  st.pending = false
   st.handle = nil
   st.current = nil
   st.seq = st.seq + 1
