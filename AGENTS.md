@@ -40,6 +40,7 @@ domain **contexts**. Think a much smaller avante.nvim.
 | `chat/render.lua` | pure markdown → extmark specs (fences/headings/lists/quotes/inline code) |
 | `chat/stream.lua` | send pipeline: mentions → context blocks → provider stream → throttled flush; busy/cancel/follow |
 | `chat/session.lua` | multi-session persistence under `stdpath("data")/poste-ai/sessions/` |
+| `text.lua` | shared pure-text helpers (`truncate` by display width) |
 | `chat/mention.lua` | @token parsing (context matchers first, file fallback), completion, `resolve_all` aggregation |
 | `chat/actions.lua` | code-block actions: execute via context, yank, append-to-origin, jump |
 | `commands.lua` / `health.lua` | `:PosteAI*` commands, `:checkhealth poste-ai` |
