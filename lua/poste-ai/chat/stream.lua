@@ -120,8 +120,11 @@ local function finalize(seq, err, result)
 
   if err then
     conversation.append_error(err)
+    -- persist the block so it survives close/reopen (same for the cancel note)
+    session.append_record("error", err, cur)
   elseif result.cancelled then
     conversation.append_note("· cancelled")
+    session.append_record("note", "· cancelled", cur)
   end
 
   st.busy = false

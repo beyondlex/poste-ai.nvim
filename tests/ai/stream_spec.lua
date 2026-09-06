@@ -105,8 +105,11 @@ describe("poste-ai.chat.stream", function()
     local ls = table.concat(conv_lines(), "\n")
     assert.truthy(ls:find("cancelled"))
     local msgs = session.current().messages
-    assert.are.equal("assistant", msgs[#msgs].role)
-    assert.is_true(#msgs[#msgs].text < #"chunk onechunk twochunk three")
+    -- the cancel note is persisted after the assistant turn
+    assert.are.equal("note", msgs[#msgs].role)
+    assert.are.equal("· cancelled", msgs[#msgs].text)
+    assert.are.equal("assistant", msgs[#msgs - 1].role)
+    assert.is_true(#msgs[#msgs - 1].text < #"chunk onechunk twochunk three")
   end)
 
   it("injects mention context into the LLM user content", function()
@@ -136,8 +139,28 @@ describe("poste-ai.chat.stream", function()
     assert.truthy(ls:find("✗ error"))
     assert.truthy(ls:find("mock exploded"))
     local msgs = session.current().messages
-    assert.are.equal(2, #msgs)
-    assert.is_true(msgs[#msgs].errored)
+    -- user + assistant (errored) + persisted error record
+    assert.are.equal(3, #msgs)
+    assert.is_true(msgs[2].errored)
+    assert.are.equal("error", msgs[3].role)
+    assert.truthy(msgs[3].text:find("mock exploded"))
+  end)
+
+  it("re-renders persisted error and note blocks after a session reload", function()
+    -- the reopen path: set_messages from the session must reproduce
+    -- error/note blocks, not just user/assistant turns
+    local s = session.current()
+    s.messages = {
+      { role = "user", text = "q", ts = os.time() },
+      { role = "assistant", text = "a", ts = os.time() },
+      { role = "error", text = "boom happened", ts = os.time() },
+      { role = "note", text = "· cancelled", ts = os.time() },
+    }
+    conversation.set_messages(s.messages)
+    local ls = table.concat(conv_lines(), "\n")
+    assert.truthy(ls:find("✗ error"))
+    assert.truthy(ls:find("boom happened"))
+    assert.truthy(ls:find("· cancelled"))
   end)
 
   it("leaves no stale handle when the adapter errors synchronously", function()

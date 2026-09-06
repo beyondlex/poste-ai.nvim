@@ -149,17 +149,27 @@ function M.execute_codeblock()
     if msgs[i].role == "user" then refs = msgs[i].refs or {} break end
   end
 
-  conversation.append_note("· executing " .. (cb.lang ~= "" and cb.lang or "code") .. " block …")
+  local exec_note = "· executing " .. (cb.lang ~= "" and cb.lang or "code") .. " block …"
+  conversation.append_note(exec_note)
+  session.append_record("note", exec_note)
+  local function record(kind, text)
+    session.append_record(kind, text)
+  end
   local ok, err = pcall(code_cfg.execute, cb.text, refs, function(exec_err, note)
     vim.schedule(function()
       if exec_err then
         conversation.append_error(tostring(exec_err))
+        record("error", tostring(exec_err))
       elseif note then
         conversation.append_note(note)
+        record("note", note)
       end
     end)
   end)
-  if not ok then conversation.append_error("execute failed: " .. tostring(err)) end
+  if not ok then
+    conversation.append_error("execute failed: " .. tostring(err))
+    record("error", "execute failed: " .. tostring(err))
+  end
 end
 
 M._test = { codeblock_under_cursor = M.codeblock_under_cursor }

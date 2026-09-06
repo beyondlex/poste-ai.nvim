@@ -123,6 +123,23 @@ function M.delete(id)
   if st.current and st.current.id == id then st.current = nil end
 end
 
+--- Append a non-chat record (role "error" or "note") to a session's message
+--- list so these blocks survive reopen — previously they lived only in the
+--- conversation buffer and vanished on the next render. `s` defaults to the
+--- current session. LLM history (`history_messages`) ignores these roles.
+--- @param role string "error"|"note"
+--- @param text string
+--- @param s table|nil owning session
+--- @return table|nil the stored record
+function M.append_record(role, text, s)
+  s = s or st.current
+  if not s or not text or text == "" then return nil end
+  local rec = { role = role, text = text, ts = os.time() }
+  s.messages[#s.messages + 1] = rec
+  s.updated_at = rec.ts
+  return rec
+end
+
 --- Test/low-level: set the current session without switching files.
 function M.set_current(s) st.current = s end
 
