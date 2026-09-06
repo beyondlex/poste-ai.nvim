@@ -16,7 +16,10 @@ local function ensure_dir()
 end
 
 local function make_id()
-  return vim.fn.strftime("%Y%m%d-%H%M%S") .. "-" .. tostring(math.random(1000, 9999))
+  -- second-resolution timestamp plus a wide random tail: two sessions created
+  -- in the same second must not overwrite each other's file
+  return vim.fn.strftime("%Y%m%d-%H%M%S")
+    .. "-" .. string.format("%06x", math.random(0, 0xffffff))
 end
 
 --- Start a fresh session and make it current.

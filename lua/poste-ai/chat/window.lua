@@ -427,11 +427,14 @@ function M.scroll_conversation_to_end()
 end
 
 --- True when the last buffer line is visible in the window (tail-follow).
+--- Both line() calls pass `win`: without it line("$") reads the *current*
+--- buffer, so scrolling the conversation from another window (mouse wheel,
+--- streaming while the user works elsewhere) compared against the wrong file.
 --- @param win number
 function M.at_bottom(win)
   if not win or not vim.api.nvim_win_is_valid(win) then return false end
   local ok, last_visible = pcall(vim.fn.line, "w$", win)
-  local ok2, last_line = pcall(vim.fn.line, "$")
+  local ok2, last_line = pcall(vim.fn.line, "$", win)
   if not ok or not ok2 then return false end
   return last_visible >= last_line - 1
 end

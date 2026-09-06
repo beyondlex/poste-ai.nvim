@@ -167,6 +167,27 @@ describe("poste-ai.chat.stream", function()
     assert.is_nil(st.current)
   end)
 
+  it("finalize saves the session the stream started in, not the one current now", function()
+    -- user runs /session mid-stream: the reply belongs to the old session,
+    -- and that is the file finalize must persist
+    local st = stream._test.state
+    local owner = session.new()
+    local owner_msg = { role = "assistant", text = "", model = "mock-1" }
+    owner.messages = { owner_msg }
+    session.new()          -- a different session is current by finalize time
+    assert.are_not.equal(owner.id, session.current().id)
+
+    st.seq = st.seq + 1
+    st.busy = true
+    st.current = { assistant_text = "final text", session_msg = owner_msg, session = owner }
+    stream._test.finalize(st.seq, nil, {})
+
+    assert.are.equal("final text", owner.messages[1].text)
+    local saved = session.load(owner.id)
+    assert.is_not_nil(saved, "owning session must be persisted")
+    assert.are.equal("final text", saved.messages[1].text)
+  end)
+
   it("sends the composed history including the system prompt", function()
     local captured
     registry.register("mock", {

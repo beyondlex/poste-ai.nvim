@@ -15,9 +15,10 @@ function M.register(name, module)
   adapters[name] = module
 end
 
---- Resolve the adapter module for a provider config. Falls back to the
---- `protocol` field, then the provider name, then "openai".
---- Registered values are either require paths (strings) or adapter tables.
+--- Resolve the adapter module for a provider config. `cfg.protocol` selects
+--- an adapter explicitly; anything else (including unknown names) uses the
+--- OpenAI-compatible one. Registered values are either require paths
+--- (strings) or adapter tables.
 --- @param cfg table provider config
 --- @return table|nil adapter
 --- @return string|nil err

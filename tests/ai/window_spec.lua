@@ -155,6 +155,30 @@ describe("poste-ai.chat.window", function()
     window.open()
     local conv_win = window.conversation_win()
     assert.is_true(window.at_bottom(conv_win))  -- short buffer fits on screen
+
+    -- focus elsewhere with a much taller buffer: the check must still read
+    -- the conversation window's own buffer, not the focused one
+    local conversation = require("poste-ai.chat.conversation")
+    local msgs = {}
+    for i = 1, 50 do
+      msgs[#msgs + 1] = { role = "user", text = "q" .. i }
+      msgs[#msgs + 1] = { role = "assistant", text = "a" .. i }
+    end
+    conversation.set_messages(msgs)
+    vim.api.nvim_win_set_height(conv_win, 3)
+    window.scroll_conversation_to_end()
+
+    local tall = vim.api.nvim_create_buf(false, true)
+    local lines = {}
+    for i = 1, 500 do lines[i] = "filler " .. i end
+    vim.api.nvim_buf_set_lines(tall, 0, -1, false, lines)
+    local tall_win = vim.api.nvim_open_win(tall, true, {
+      relative = "editor", row = 0, col = 0, width = 20, height = 10,
+    })
+    -- cursor parked mid-way in the tall buffer (its last line is off-screen),
+    -- yet the conversation window IS at its own bottom
+    assert.is_true(window.at_bottom(conv_win))
+    vim.api.nvim_win_close(tall_win, true)
   end)
 
   it("scrolls the conversation pane to the newest block", function()

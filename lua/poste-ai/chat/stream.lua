@@ -107,7 +107,10 @@ local function finalize(seq, err, result)
   st.current = st.current or { assistant_text = "" }
   flush_now()
   local session = require("poste-ai.chat.session")
-  local cur = session.current()
+  -- the reply belongs to the session it started in: if the user ran
+  -- /session mid-stream, session.current() is the *new* session and saving
+  -- it here would strand the final text in the old one until it is re-opened
+  local cur = st.current.session or session.current()
 
   if st.current.session_msg then
     st.current.session_msg.text = st.current.assistant_text
@@ -187,7 +190,7 @@ function M.send(text)
       conversation.begin_assistant(cfg.model)
       local session_msg = { role = "assistant", text = "", model = cfg.model }
       cur.messages[#cur.messages + 1] = session_msg
-      st.current = { assistant_text = "", session_msg = session_msg }
+      st.current = { assistant_text = "", session_msg = session_msg, session = cur }
 
       local messages = { { role = "system", content = context_api.system_prompt() } }
       vim.list_extend(messages, history_messages(cur.messages))
