@@ -39,9 +39,9 @@ local function render()
   if #lines == 0 then lines = { " (no matches)" } end
   st.buf = st.buf and vim.api.nvim_buf_is_valid(st.buf) and st.buf
     or vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_option(st.buf, "modifiable", true)
+  vim.api.nvim_set_option_value("modifiable", true, { buf = st.buf })
   vim.api.nvim_buf_set_lines(st.buf, 0, -1, false, lines)
-  vim.api.nvim_buf_set_option(st.buf, "modifiable", false)
+  vim.api.nvim_set_option_value("modifiable", false, { buf = st.buf })
 
   local max_w = 40
   if st.input_win and vim.api.nvim_win_is_valid(st.input_win) then
@@ -134,8 +134,8 @@ function M.open(items, opts)
     if not st.buf or not vim.api.nvim_buf_is_valid(st.buf) then
       st.buf = vim.api.nvim_create_buf(false, true)
     end
-    vim.api.nvim_buf_set_option(st.buf, "bufhidden", "hide")
-    vim.api.nvim_buf_set_option(st.buf, "swapfile", false)
+    vim.api.nvim_set_option_value("bufhidden", "hide", { buf = st.buf })
+    vim.api.nvim_set_option_value("swapfile", false, { buf = st.buf })
     -- anchored above the input window: popup bottom-left at its top-left cell
     st.win = vim.api.nvim_open_win(st.buf, false, {
       relative = "win",
@@ -149,10 +149,10 @@ function M.open(items, opts)
       border = "rounded",
       zindex = 50,
     })
-    vim.api.nvim_win_set_option(st.win, "wrap", false)
-    vim.api.nvim_win_set_option(st.win, "cursorline", true)
-    vim.api.nvim_win_set_option(st.win, "cursorlineopt", "line")
-    vim.api.nvim_win_set_option(st.win, "winhighlight", "CursorLine:PosteAiPopupSel,Normal:PosteAiPopup")
+    vim.api.nvim_set_option_value("wrap", false, { win = st.win })
+    vim.api.nvim_set_option_value("cursorline", true, { win = st.win })
+    vim.api.nvim_set_option_value("cursorlineopt", "line", { win = st.win })
+    vim.api.nvim_set_option_value("winhighlight", "CursorLine:PosteAiPopupSel,Normal:PosteAiPopup", { win = st.win })
     if not st.saved_maps then temp_maps(input_buf) end
   end
   render()

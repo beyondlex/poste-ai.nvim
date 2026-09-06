@@ -5,6 +5,7 @@
 
 local config = require("poste-ai.config")
 local state = require("poste-ai.state")
+local truncate = require("poste-ai.text").truncate
 
 local M = {}
 
@@ -26,19 +27,11 @@ local function key(section, action)
 end
 
 --- Truncate a title so its display width fits `limit` columns, appending "...".
+--- Kept as a `_test`-visible alias — the implementation lives in `poste-ai.text`.
 --- @param title string
 --- @param limit number
 --- @return string
-function M._truncate(title, limit)
-  if limit <= 3 then return vim.fn.strcharpart(title, 0, math.max(0, limit - 3)) .. "..." end
-  local n = vim.fn.strchars(title)
-  for i = 0, n do
-    if vim.fn.strdisplaywidth(vim.fn.strcharpart(title, 0, i)) > limit - 3 then
-      return vim.fn.strcharpart(title, 0, math.max(0, i - 1)) .. "..."
-    end
-  end
-  return title
-end
+function M._truncate(title, limit) return truncate(title, limit) end
 
 --- Collapse internal whitespace to a single space (titles may be multi-line).
 local function flatten(text)

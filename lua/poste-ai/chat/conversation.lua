@@ -9,6 +9,8 @@
 
 local render = require("poste-ai.chat.render")
 local tshl = require("poste-ai.chat.tshl")
+-- bound directly: this file uses `text` as a parameter name all over
+local truncate = require("poste-ai.text").truncate
 
 local M = {}
 
@@ -98,10 +100,14 @@ local function delete_marks(msg)
   msg._ids = nil
 end
 
---- Apply highlight extmarks for one message. `off` shifts 0-based content rows.
-local function apply_marks(msg, off)
+--- Apply highlight extmarks for one message. `rows` is the message's row
+--- anchor table (as stored in `st.rows`); content rows shift from
+--- `rows.content_start`. Passing the anchor keeps full re-renders linear —
+--- the previous identity scan over `st.messages` was O(n) per message.
+local function apply_marks(msg, rows)
   if st.source_mode or not buf_ready() then return end
   delete_marks(msg)
+  local off = rows.content_start
   local max_row = line_count(st.buf) - 1
   local clines = content_lines(msg)
   local specs = render.specs(clines)
@@ -147,10 +153,6 @@ local function apply_marks(msg, off)
   end
 
   -- labels & special content styling
-  local rows = nil
-  for i, msg_i in ipairs(st.messages) do
-    if msg_i == msg then rows = st.rows[i] break end
-  end
   if rows then
     if rows.label_row ~= nil then
       local label = label_for(msg)
@@ -231,7 +233,7 @@ function M.set_messages(messages)
     vim.api.nvim_buf_set_lines(st.buf, 0, -1, false, all)
   end)
   for i, msg in ipairs(st.messages) do
-    apply_marks(msg, st.rows[i].content_start)
+    apply_marks(msg, st.rows[i])
   end
 end
 
@@ -265,7 +267,7 @@ function M.append(msg)
       vim.api.nvim_buf_set_lines(st.buf, -1, -1, false, all)
     end
   end)
-  apply_marks(stored, rows.content_start)
+  apply_marks(stored, rows)
   return stored
 end
 
@@ -281,7 +283,7 @@ function M.update_last_assistant(text)
   modify(st.buf, function()
     vim.api.nvim_buf_set_lines(st.buf, rows.content_start, -1, false, clines)
   end)
-  apply_marks(last, rows.content_start)
+  apply_marks(last, rows)
 end
 
 function M.append_user(text) return M.append({ role = "user", text = text, ts = os.time() }) end
@@ -318,20 +320,6 @@ function M.outline_entries()
   return out
 end
 
---- Truncate a string to fit `limit` display columns, appending "...".
---- @param text string
---- @param limit number
---- @return string
-local function truncate(text, limit)
-  if limit <= 3 then return vim.fn.strcharpart(text, 0, math.max(0, limit - 3)) .. "..." end
-  local n = vim.fn.strchars(text)
-  for i = 0, n do
-    if vim.fn.strdisplaywidth(vim.fn.strcharpart(text, 0, i)) > limit - 3 then
-      return vim.fn.strcharpart(text, 0, math.max(0, i - 1)) .. "..."
-    end
-  end
-  return text
-end
 
 --- Title of the chat block under a buffer row — the user question of the turn
 --- whose block starts at or before `row` (an assistant answer belongs to the
@@ -437,7 +425,7 @@ function M.set_source_mode(enabled)
     for _, msg in ipairs(st.messages) do delete_marks(msg) end
   else
     for i, msg in ipairs(st.messages) do
-      apply_marks(msg, st.rows[i].content_start)
+      apply_marks(msg, st.rows[i])
     end
   end
 end
@@ -446,7 +434,7 @@ end
 function M.redraw_marks()
   if not buf_ready() or st.source_mode then return end
   for i, msg in ipairs(st.messages) do
-    apply_marks(msg, st.rows[i].content_start)
+    apply_marks(msg, st.rows[i])
   end
 end
 
