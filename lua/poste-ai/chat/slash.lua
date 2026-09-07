@@ -36,8 +36,9 @@ local function builtins()
       desc = "switch to another session",
       complete = function(prefix)
         local items = {}
+        local prefix_l = prefix:lower()
         for _, s in ipairs(require("poste-ai.chat.session").list()) do
-          if s.name:sub(1, #prefix) == prefix then
+          if s.name:lower():sub(1, #prefix) == prefix_l then
             items[#items + 1] = {
               label = s.name,
               description = ("%d msgs · %s"):format(s.count, os.date("%m-%d %H:%M", s.updated_at)),
@@ -77,7 +78,8 @@ end
 
 local function find_command(name)
   for _, c in ipairs(M.commands()) do
-    if c.name == name then return c end
+    -- case-insensitive: typing "/New" or "/SESSION" should still find them
+    if c.name:lower() == name:lower() then return c end
   end
   return nil
 end
@@ -140,8 +142,9 @@ end
 local function show_commands(name_prefix)
   st.mode = "commands"
   local items = {}
+  local prefix_l = name_prefix:lower()
   for _, c in ipairs(M.commands()) do
-    if c.name:sub(1, #name_prefix) == name_prefix then
+    if c.name:lower():sub(1, #name_prefix) == prefix_l then
       items[#items + 1] = command_item(c)
     end
   end
