@@ -237,6 +237,25 @@ function M.set_messages(messages)
   end
 end
 
+--- True when the buffer already renders exactly `messages` (same role,
+--- text, model, ts per entry — the fields set_messages stores, i.e. the
+--- full rendered content). Lets open_chat skip the full repaint when the
+--- chat is reopened with no change.
+--- @param messages table
+--- @return boolean
+function M.matches_messages(messages)
+  if not buf_ready() then return false end
+  if #st.messages ~= #messages then return false end
+  for i, msg in ipairs(messages) do
+    local stored = st.messages[i]
+    if stored.role ~= msg.role or stored.text ~= msg.text
+      or stored.model ~= msg.model or stored.ts ~= msg.ts then
+      return false
+    end
+  end
+  return true
+end
+
 --- Append a new message at the bottom. `msg = { role, text, model }`.
 --- @return table the stored message
 function M.append(msg)

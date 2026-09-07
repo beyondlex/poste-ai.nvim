@@ -117,6 +117,26 @@ describe("poste-ai.chat.conversation", function()
     assert.are.equal(2, #conversation.messages())
   end)
 
+  it("matches_messages detects when the buffer already shows a message list", function()
+    local msgs = {
+      { role = "user", text = "q1", ts = 100 },
+      { role = "assistant", text = "a1", model = "m", ts = 101 },
+    }
+    conversation.set_messages(msgs)
+    -- identical content (even a fresh copy of the tables) → no repaint needed
+    assert.is_true(conversation.matches_messages({
+      { role = "user", text = "q1", ts = 100 },
+      { role = "assistant", text = "a1", model = "m", ts = 101 },
+    }))
+    -- any drift in the rendered fields → must repaint
+    assert.is_false(conversation.matches_messages({ msgs[1] }))
+    assert.is_false(conversation.matches_messages({
+      { role = "user", text = "q1", ts = 100 },
+      { role = "assistant", text = "CHANGED", model = "m", ts = 101 },
+    }))
+    assert.is_false(conversation.matches_messages({}))
+  end)
+
   it("yanks the last non-empty assistant text", function()
     assert.is_nil(conversation.last_assistant_text())
     conversation.begin_assistant("m")

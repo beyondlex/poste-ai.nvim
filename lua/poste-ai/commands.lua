@@ -25,7 +25,11 @@ function M.open_chat(context_id)
   window.open()
   local s = session.current()
   require("poste-ai.chat.scope").from_list(s.scope)
-  conversation.set_messages(s.messages)
+  -- repaint only when the buffer doesn't already show this session
+  -- (reopening :PosteAIChat used to rebuild lines + extmarks every time)
+  if not conversation.matches_messages(s.messages or {}) then
+    conversation.set_messages(s.messages or {})
+  end
   if conversation.is_empty() then
     conversation.append_note("PosteAI ready — type @ for mentions, / for commands, Enter to send.")
   end
