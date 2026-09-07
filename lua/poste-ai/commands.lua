@@ -50,6 +50,9 @@ function M.new_session()
   local session = require("poste-ai.chat.session")
   local conversation = require("poste-ai.chat.conversation")
   local scope = require("poste-ai.chat.scope")
+  -- drop any in-flight exchange first (its partials are saved to the session
+  -- it started in) so it cannot leak into the fresh session's view or file
+  require("poste-ai.chat.stream").force_reset()
   session.new()
   scope.clear()
   conversation.set_messages({})
@@ -63,6 +66,9 @@ function M.open_session(id)
   local session = require("poste-ai.chat.session")
   local conversation = require("poste-ai.chat.conversation")
   local scope = require("poste-ai.chat.scope")
+  -- same as new_session: an in-flight exchange belongs to the session it
+  -- started in, not the one we are about to show
+  require("poste-ai.chat.stream").force_reset()
   local s = session.switch(id)
   if not s then notify("failed to load session", vim.log.levels.ERROR) return end
   scope.from_list(s.scope)

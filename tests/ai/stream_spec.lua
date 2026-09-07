@@ -211,6 +211,26 @@ describe("poste-ai.chat.stream", function()
     assert.are.equal("final text", saved.messages[1].text)
   end)
 
+  it("force_reset persists the in-flight exchange to the session it started in", function()
+    -- commands.new_session / open_session call force_reset before switching:
+    -- the old session file must keep the user turn + partial assistant text
+    -- (the pre-fix reset discarded the owner reference entirely)
+    assert.is_true(stream.send("ask something"))
+    assert.is_true(vim.wait(1000, function() return stream.is_busy() end))
+    local owner = session.current()
+
+    stream.force_reset()
+    assert.is_false(stream.is_busy())
+    local saved = session.load(owner.id)
+    assert.is_not_nil(saved, "owning session must be persisted by force_reset")
+    local roles = {}
+    for _, m in ipairs(saved.messages) do roles[#roles + 1] = m.role end
+    assert.are.equal("user", roles[1])
+    assert.are.equal("assistant", roles[2])
+    -- late callbacks from the abandoned stream stay dropped
+    assert.is_nil(stream._test.state.current)
+  end)
+
   it("sends the composed history including the system prompt", function()
     local captured
     registry.register("mock", {

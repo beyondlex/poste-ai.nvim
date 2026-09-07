@@ -313,10 +313,27 @@ function M.cancel()
   st.handle.cancel()
 end
 
---- Hard reset of streaming state (used by tests / recovery).
+--- Hard reset of streaming state (used by tests / recovery, and by session
+--- switches). Persists what the in-flight exchange had already accumulated —
+--- the user message and any partial assistant text — to the session it
+--- belongs to FIRST, then bumps the epoch so every late callback (deltas,
+--- on_finish, and a compose still resolving mentions) is dropped. Without the
+--- save, a mid-stream /new or /session switch stranded the exchange: the old
+--- session file stayed without it until some later save, and finalize's
+--- error/cancel note leaked into the new session's view.
 function M.force_reset()
   if st.handle then pcall(function() st.handle.cancel() end) end
   cancel_flush_timer()
+  if st.current then
+    local owner = st.current.session
+    if owner then
+      if st.current.session_msg then
+        st.current.session_msg.text = st.current.assistant_text
+      end
+      owner.updated_at = os.time()
+      pcall(require("poste-ai.chat.session").save, owner)
+    end
+  end
   st.busy = false
   st.pending = false
   st.handle = nil
