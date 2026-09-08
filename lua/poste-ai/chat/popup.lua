@@ -34,7 +34,10 @@ local function render()
       line = line .. "  " .. it.description
     end
     lines[#lines + 1] = line
-    if #line > width then width = #line end
+    -- display width, not byte length: CJK labels/descriptions are wider than
+    -- their #len, and a byte-sized width clips their last column
+    local w = vim.fn.strdisplaywidth(line)
+    if w > width then width = w end
   end
   if #lines == 0 then lines = { " (no matches)" } end
   st.buf = st.buf and vim.api.nvim_buf_is_valid(st.buf) and st.buf
