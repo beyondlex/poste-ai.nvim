@@ -99,7 +99,17 @@ function M.specs(lines)
           marks[#marks + 1] = { row = i - 1, col = ncol - 1, length = #num + 1, group = "PosteAiBullet" }
         end
       end
-      -- inline code spans (skip fence lines): highlight inner text, hide ticks
+      -- inline code spans (skip fence lines): highlight inner text, hide ticks.
+      -- Their ranges are recorded so the emphasis scans below treat markdown
+      -- markers inside backticks as literal text (`` `**not bold**` `` stays
+      -- literal — no bold marks, no concealed asterisks).
+      local taken = {}  -- 1-based occupied intervals on this line
+      local function contained(a, b)
+        for _, iv in ipairs(taken) do
+          if iv[1] <= a and b <= iv[2] then return true end
+        end
+        return false
+      end
       local pos = 1
       while true do
         local s, e = line:find("`[^`]+`", pos)
@@ -107,18 +117,20 @@ function M.specs(lines)
         marks[#marks + 1] = { row = i - 1, col = s, length = e - s - 1, group = "PosteAiInlineCode" }
         marks[#marks + 1] = { row = i - 1, col = s - 1, length = 1, group = "PosteAiInlineCode", conceal = "" }
         marks[#marks + 1] = { row = i - 1, col = e - 1, length = 1, group = "PosteAiInlineCode", conceal = "" }
+        taken[#taken + 1] = { s, e }
         pos = e + 1
       end
       -- bold / italic: highlight inner span, hide the marker runs
-      local taken = {}  -- 1-based occupied intervals on this line
       pos = 1
       while true do
         local s, e = line:find("%*%*[^%s%*][^%*]*%*%*", pos)
         if not s then break end
-        marks[#marks + 1] = { row = i - 1, col = s + 1, length = e - s - 3, group = "PosteAiBold" }
-        marks[#marks + 1] = { row = i - 1, col = s - 1, length = 2, group = "PosteAiBold", conceal = "" }
-        marks[#marks + 1] = { row = i - 1, col = e - 2, length = 2, group = "PosteAiBold", conceal = "" }
-        taken[#taken + 1] = { s, e }
+        if not contained(s, e) then
+          marks[#marks + 1] = { row = i - 1, col = s + 1, length = e - s - 3, group = "PosteAiBold" }
+          marks[#marks + 1] = { row = i - 1, col = s - 1, length = 2, group = "PosteAiBold", conceal = "" }
+          marks[#marks + 1] = { row = i - 1, col = e - 2, length = 2, group = "PosteAiBold", conceal = "" }
+          taken[#taken + 1] = { s, e }
+        end
         pos = e + 1
       end
       local function free(a, b)
@@ -132,7 +144,7 @@ function M.specs(lines)
         while true do
           local s, e = line:find(pat, pos)
           if not s then break end
-          if free(s, e) then
+          if not contained(s, e) and free(s, e) then
             marks[#marks + 1] = { row = i - 1, col = s, length = e - s - 1, group = "PosteAiItalic" }
             marks[#marks + 1] = { row = i - 1, col = s - 1, length = 1, group = "PosteAiItalic", conceal = "" }
             marks[#marks + 1] = { row = i - 1, col = e - 1, length = 1, group = "PosteAiItalic", conceal = "" }

@@ -99,6 +99,21 @@ describe("poste-ai.chat.render", function()
     assert.are.equal(6, conceal_runs)  -- bold x2, *ital* x2, _und_ x2
   end)
 
+  it("treats emphasis markers inside inline code as literal text", function()
+    local specs = render.specs({ "use `**not bold**` and `_not ital_` here" })
+    for _, m in ipairs(specs.marks) do
+      assert.is_not.equal("PosteAiBold", m.group)
+      assert.is_not.equal("PosteAiItalic", m.group)
+    end
+    -- the asterisks/underscores survive as plain text (nothing concealed
+    -- except the backticks themselves)
+    local backtick_conceals = 0
+    for _, m in ipairs(specs.marks) do
+      if m.conceal ~= nil then backtick_conceals = backtick_conceals + 1 end
+    end
+    assert.are.equal(4, backtick_conceals)  -- 2 spans x (open + close)
+  end)
+
   it("renders fenced code blocks with bg, lang and block metadata", function()
     local specs = render.specs({
       "before",       -- 0
