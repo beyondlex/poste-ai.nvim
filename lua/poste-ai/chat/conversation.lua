@@ -305,9 +305,12 @@ function M.update_last_assistant(text)
   apply_marks(last, rows)
 end
 
-function M.append_user(text) return M.append({ role = "user", text = text, ts = os.time() }) end
-function M.append_error(text) return M.append({ role = "error", text = text, ts = os.time() }) end
-function M.append_note(text) return M.append({ role = "note", text = text, ts = os.time() }) end
+-- Optional `ts` lets callers (stream.lua) share one timestamp between the
+-- conversation buffer and the session message: matches_messages compares ts,
+-- so diverging os.time() values would force a needless full repaint on reopen.
+function M.append_user(text, ts) return M.append({ role = "user", text = text, ts = ts or os.time() }) end
+function M.append_error(text, ts) return M.append({ role = "error", text = text, ts = ts or os.time() }) end
+function M.append_note(text, ts) return M.append({ role = "note", text = text, ts = ts or os.time() }) end
 
 --- Begin an empty assistant turn (placeholder for streaming).
 --- @param model string|nil

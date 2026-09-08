@@ -62,6 +62,20 @@ describe("poste-ai.chat.stream", function()
     assert.are.equal("Hello world", msgs[2].text)
   end)
 
+  it("keeps session and buffer timestamps aligned across a >1s stream", function()
+    -- a stream that crosses a second boundary: finalize must keep the
+    -- assistant ts the buffer rendered (begin of stream) — overwriting it
+    -- with the end time made matches_messages fail and forced a full
+    -- conversation repaint on every reopen of a completed chat
+    require("tests.ai.fixtures.mock_adapter").reset({ "slow reply" }, 1100)
+    assert.is_true(stream.send("slow question"))
+    vim.wait(5000, function() return not stream.is_busy() end)
+
+    assert.is_false(stream.is_busy())
+    assert.is_true(conversation.matches_messages(session.current().messages),
+      "reopening a completed chat must not need a repaint (ts/text must align)")
+  end)
+
   it("rejects empty input and concurrent sends", function()
     assert.is_false(stream.send("   "))
     -- occupy the stream with a slow mock

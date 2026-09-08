@@ -114,17 +114,19 @@ local function finalize(seq, err, result)
 
   if st.current.session_msg then
     st.current.session_msg.text = st.current.assistant_text
-    st.current.session_msg.ts = os.time()
+    -- NB: don't touch session_msg.ts here — it must keep the begin-of-stream
+    -- stamp the conversation buffer rendered, or matches_messages would see a
+    -- mismatch and repaint the whole conversation on every reopen
     if err then st.current.session_msg.errored = true end
   end
 
   if err then
-    conversation.append_error(err)
-    -- persist the block so it survives close/reopen (same for the cancel note)
-    session.append_record("error", err, cur)
+    -- persist first, then render with the record's own ts (keeps the pair equal)
+    local rec = session.append_record("error", err, cur)
+    conversation.append_error(err, rec and rec.ts or nil)
   elseif result.cancelled then
-    conversation.append_note("· cancelled")
-    session.append_record("note", "· cancelled", cur)
+    local rec = session.append_record("note", "· cancelled", cur)
+    conversation.append_note("· cancelled", rec and rec.ts or nil)
   end
 
   st.busy = false
@@ -189,9 +191,12 @@ function M.send(text)
       }
       cur.messages[#cur.messages + 1] = user_msg
 
-      conversation.append_user(text)
-      conversation.begin_assistant(cfg.model)
-      local session_msg = { role = "assistant", text = "", model = cfg.model }
+      -- share timestamps between the buffer blocks and the session records so
+      -- matches_messages sees them as equal on reopen (diverging os.time()
+      -- values would force a full repaint after every streamed reply)
+      conversation.append_user(text, user_msg.ts)
+      local stored = conversation.begin_assistant(cfg.model)
+      local session_msg = { role = "assistant", text = "", model = cfg.model, ts = stored.ts }
       cur.messages[#cur.messages + 1] = session_msg
       st.current = { assistant_text = "", session_msg = session_msg, session = cur }
 
