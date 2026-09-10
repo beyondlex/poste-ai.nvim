@@ -146,6 +146,30 @@ describe("poste-ai.chat.slash", function()
     assert.are.equal("", window.input_text())
   end)
 
+  it("built-in /session completion matches substrings of the name", function()
+    -- sessions default to "chat 2026-09-11 08:30" — the distinguishing part
+    -- sits mid-name, so a prefix-only match can't find them by it
+    local session = require("poste-ai.chat.session")
+    window.open()
+    -- list() reads the sessions dir, which persists across test runs:
+    -- drop same-named leftovers so the counts below are exact
+    for _, s in ipairs(session.list()) do
+      if s.name == "blog refactor" or s.name == "scratch" then session.delete(s.id) end
+    end
+    session.new("blog refactor")
+    session.save()
+    session.new("scratch")
+    session.save()
+    local cmd = slash._test.find_command("session")
+    local hits = cmd.complete("refactor")
+    assert.are.equal(1, #hits)
+    assert.are.equal("blog refactor", hits[1].label)
+    hits = cmd.complete("scratch")
+    assert.are.equal(1, #hits)
+    hits = cmd.complete("zzz")
+    assert.are.equal(0, #hits)
+  end)
+
   it("built-in /new works through submit", function()
     local session = require("poste-ai.chat.session")
     local conversation = require("poste-ai.chat.conversation")

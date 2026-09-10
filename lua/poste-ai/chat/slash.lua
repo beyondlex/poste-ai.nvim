@@ -38,7 +38,9 @@ local function builtins()
         local items = {}
         local prefix_l = prefix:lower()
         for _, s in ipairs(require("poste-ai.chat.session").list()) do
-          if s.name:lower():sub(1, #prefix) == prefix_l then
+          -- substring match: sessions are named "chat 2026-09-11 08:30" by
+          -- default, where the distinguishing part sits mid-name
+          if s.name:lower():find(prefix_l, 1, true) then
             items[#items + 1] = {
               label = s.name,
               description = ("%d msgs · %s"):format(s.count, os.date("%m-%d %H:%M", s.updated_at)),
