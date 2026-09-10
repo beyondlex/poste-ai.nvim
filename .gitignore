@@ -1,4 +1,5 @@
 .idea/
+.zcode/
 
 # Secrets — never commit
 .env

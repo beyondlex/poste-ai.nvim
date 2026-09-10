@@ -111,6 +111,7 @@ local function resolve_ref(ref, cb)
     end
     local l1, l2 = ref.l1, ref.l2
     if l1 or l2 then
+      if l1 and l2 and l1 > l2 then l1, l2 = l2, l1 end  -- @f(50-10) typo
       l1 = math.max(1, l1 or 1)
       l2 = math.min(#lines, l2 or #lines)
       lines = vim.list_slice(lines, l1, l2)

@@ -199,6 +199,33 @@ describe("poste-ai.chat.actions", function()
     assert.is_nil(executed)
   end)
 
+  it("pairs each result block with its session record's timestamp", function()
+    local session = require("poste-ai.chat.session")
+    context_api.register("ac", {
+      codeblock = {
+        langs = { "sql" },
+        execute = function(text, refs, cb) cb("kaput", nil) end,
+      },
+    })
+    context_api.set_active("ac")
+    focus_code_row()
+    actions.execute_codeblock()
+    vim.wait(200, function()
+      local msgs = conversation.messages()
+      local last = msgs[#msgs]
+      return last and last.role == "error" and last.text == "kaput"
+    end)
+
+    local s_msgs = session.current().messages
+    local last_rec = s_msgs[#s_msgs]
+    -- the raw stored messages carry the ts; the public messages() copy omits it
+    local last_buf = conversation._state().messages[#conversation._state().messages]
+    assert.are.equal("error", last_rec.role)
+    -- diverging ts values would force a full conversation repaint on reopen
+    assert.are.equal(last_rec.ts, last_buf.ts,
+      "buffer block and session record must share one ts")
+  end)
+
   it("survives a failing execute callback", function()
     context_api.register("ac", {
       codeblock = {

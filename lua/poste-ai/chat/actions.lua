@@ -149,26 +149,30 @@ function M.execute_codeblock()
     if msgs[i].role == "user" then refs = msgs[i].refs or {} break end
   end
 
+  -- one timestamp per pair (buffer block + session record): diverging
+  -- os.time() values make matches_messages see a mismatch on reopen and
+  -- force a full conversation repaint
   local exec_note = "· executing " .. (cb.lang ~= "" and cb.lang or "code") .. " block …"
-  conversation.append_note(exec_note)
-  session.append_record("note", exec_note)
+  local exec_rec = session.append_record("note", exec_note)
+  conversation.append_note(exec_note, exec_rec and exec_rec.ts or nil)
   local function record(kind, text)
-    session.append_record(kind, text)
+    local rec = session.append_record(kind, text)
+    return rec
   end
   local ok, err = pcall(code_cfg.execute, cb.text, refs, function(exec_err, note)
     vim.schedule(function()
       if exec_err then
-        conversation.append_error(tostring(exec_err))
-        record("error", tostring(exec_err))
+        local rec = record("error", tostring(exec_err))
+        conversation.append_error(tostring(exec_err), rec and rec.ts or nil)
       elseif note then
-        conversation.append_note(note)
-        record("note", note)
+        local rec = record("note", note)
+        conversation.append_note(note, rec and rec.ts or nil)
       end
     end)
   end)
   if not ok then
-    conversation.append_error("execute failed: " .. tostring(err))
-    record("error", "execute failed: " .. tostring(err))
+    local rec = record("error", "execute failed: " .. tostring(err))
+    conversation.append_error("execute failed: " .. tostring(err), rec and rec.ts or nil)
   end
 end
 
