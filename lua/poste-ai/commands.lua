@@ -100,6 +100,57 @@ function M.switch_session()
   end)
 end
 
+--- Delete a session's file and, when it is the one currently shown, reset the
+--- chat view (the pointer file tolerates a missing target: load_last falls
+--- back to a fresh session on the next current() call).
+--- @param id string
+function M._delete_confirmed(id)
+  local session = require("poste-ai.chat.session")
+  local conversation = require("poste-ai.chat.conversation")
+  local was_current = session._state().current
+    and session._state().current.id == id
+  session.delete(id)
+  if was_current then
+    -- the visible session is gone: blank the view, matching /new's cleanup
+    require("poste-ai.chat.scope").clear()
+    conversation.set_messages({})
+    conversation.append_note("Session deleted — type @ for mentions, / for commands, Enter to send.")
+    require("poste-ai.chat.window").update_winbar()
+  end
+  notify("session deleted")
+end
+
+local function confirm_delete(item)
+  vim.ui.input({ prompt = ("Delete %q? type y to confirm: "):format(item.name) }, function(answer)
+    if answer and answer:lower() == "y" then
+      M._delete_confirmed(item.id)
+    end
+  end)
+end
+
+--- Delete a stored session. Without an id, pick from the list.
+--- @param id string|nil
+function M.delete_session(id)
+  local session = require("poste-ai.chat.session")
+  if id and id ~= "" then
+    if not session.load(id) then notify("no such session: " .. id, vim.log.levels.WARN) return end
+    confirm_delete({ id = id, name = id })
+    return
+  end
+  local items = session.list()
+  if #items == 0 then notify("no saved sessions yet", vim.log.levels.WARN) return end
+  vim.ui.select(items, {
+    prompt = "Delete session:",
+    format_item = function(item)
+      return string.format("%s  (%d msgs, %s)", item.name, item.count,
+        os.date("%m-%d %H:%M", item.updated_at))
+    end,
+  }, function(choice)
+    if not choice then return end
+    confirm_delete(choice)
+  end)
+end
+
 --- Pick provider + model at runtime.
 --- @param args string|nil "provider model" (e.g. "openai gpt-4o")
 function M.set_model(args)
@@ -183,6 +234,13 @@ function M.setup()
   vim.api.nvim_create_user_command("PosteAISessions", function()
     M.switch_session()
   end, { desc = "Switch PosteAI chat session" })
+
+  vim.api.nvim_create_user_command("PosteAISessionDelete", function(args)
+    M.delete_session(vim.trim(args.args))
+  end, {
+    nargs = "?",
+    desc = "Delete a PosteAI chat session (pick when no id given)",
+  })
 
   vim.api.nvim_create_user_command("PosteAICancel", function()
     require("poste-ai.chat.stream").cancel()
