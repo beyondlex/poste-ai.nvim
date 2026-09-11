@@ -75,6 +75,15 @@ describe("poste-ai.provider.openai", function()
       local msg = openai.error_from_body({ error = { message = string.rep("x", 1000) } })
       assert.is_true(#msg < 400)
     end)
+
+    it("truncates CJK messages on a character boundary", function()
+      -- 200 CJK chars = 600 bytes, cut at byte 300 lands mid-character;
+      -- the byte-based sub notified invalid UTF-8
+      local msg = openai.error_from_body({ error = { message = string.rep("\u{6570}", 200) } })
+      assert.equals("…", msg:sub(-3))
+      -- every character of the result decodes: strchars counts whole chars
+      assert.is_true(vim.fn.strdisplaywidth(msg) < 310)
+    end)
   end)
 
   it("maps curl exit codes", function()

@@ -7,6 +7,7 @@
 local sse = require("poste-ai.provider.sse")
 local config = require("poste-ai.config")
 local log = require("poste-ai.log")
+local text = require("poste-ai.text")
 
 local M = {}
 
@@ -82,7 +83,9 @@ function M.error_from_body(obj)
   if #parts == 0 and obj.message then parts[#parts + 1] = obj.message end
   if #parts == 0 then parts[#parts + 1] = vim.json.encode(obj) end
   local msg = table.concat(parts, " ")
-  if #msg > 300 then msg = msg:sub(1, 300) .. "…" end
+  -- char-safe cut: CJK error messages (DeepSeek/Qwen are first-class here)
+  -- split in half under a byte-based sub and notified invalid UTF-8
+  if #msg > 300 then msg = text.utf8_safe_cut(msg, 300) .. "…" end
   return msg
 end
 

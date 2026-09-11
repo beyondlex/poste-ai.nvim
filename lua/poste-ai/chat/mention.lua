@@ -6,6 +6,7 @@
 
 local context_api = require("poste-ai.context_api")
 local state = require("poste-ai.state")
+local text_util = require("poste-ai.text")
 
 local M = {}
 
@@ -120,7 +121,9 @@ local function resolve_ref(ref, cb)
     if l1 then header = header .. (" (lines %d-%d)"):format(l1, l2) end
     local body = table.concat(lines, "\n")
     if #body > MAX_BLOCK_CHARS then
-      body = body:sub(1, MAX_BLOCK_CHARS) .. "\n… (truncated)"
+      -- char-safe cut at the byte budget: a plain sub split multibyte
+      -- characters and sent invalid UTF-8 to the provider
+      body = text_util.utf8_safe_cut(body, MAX_BLOCK_CHARS) .. "\n… (truncated)"
     end
     local lang = lang_for(ref.path)
     cb(header .. "\n```" .. lang .. "\n" .. body .. "\n```", nil)
